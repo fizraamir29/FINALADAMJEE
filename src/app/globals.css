@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
+
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  /* SF Pro system font stack — renders native SF Pro on Apple devices */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ─── Global SF Pro Font Override ─── */
+html, body, *, *::before, *::after {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif !important;
 }
 
 /* ═══════════════════════════════════════════════
@@ -88,9 +95,17 @@
 .animate-float         { animation: float       3s ease-in-out infinite; }
 .animate-pulse-slow    { animation: pulseSlow   2s ease-in-out infinite; }
 
+/* Mobile nav drawer slide in from right */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.animate-slide-in-right { animation: slideInRight 0.28s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #007bff 0%, #38bdf8 50%, #0a1b2d 100%);
+  background: linear-gradient(135deg, #164475 0%, #38bdf8 50%, #0a1b2d 100%);
   background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -102,8 +117,12 @@
    PREMIUM CONCEPT THEME ANIMATIONS (Shopify Inspiration)
    ========================================================================== */
 
-/* Easing Variables */
+/* Easing Variables & Figma Color Tokens */
 :root {
+  --primary-navy: #164475;
+  --accent-sky: #6CC1F9;
+  --hero-navy-dark: #103256;
+  --hero-navy-light: #164475;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 300ms;
@@ -111,12 +130,24 @@
 }
 
 /* 1. Header Scroll States */
+@keyframes headerSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* .header-scrolled: visual-only overrides — position handled by sticky in JSX */
 .header-scrolled {
-  background: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
-  transition: all var(--duration-normal) var(--ease-out);
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
 }
 
 /* Nav Link Underline Hover */
@@ -131,7 +162,7 @@
   height: 2px;
   bottom: -4px;
   left: 0;
-  background-color: #007bff;
+  background-color: #164475;
   transition: width var(--duration-fast) var(--ease-out);
 }
 .nav-link-underline:hover::after {
@@ -167,12 +198,18 @@
   animation: pulseGlow 2s infinite;
 }
 
-/* 4. Product Image Zoom Hover */
+/* 4. Product Image Zoom Hover — smooth easing on ALL product/card images */
 .product-img-zoom {
-  transition: transform var(--duration-normal) var(--ease-out);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 .card-hover:hover .product-img-zoom {
-  transform: scale(1.08);
+  transform: scale(1.06);
+}
+
+/* Universal smooth zoom for any img inside a group card on hover */
+.group img {
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 7. Marquee */
@@ -237,11 +274,14 @@
 
 /* Existing overrides to match premium speed */
 .card-hover {
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 250ms ease;
+  will-change: transform;
 }
 .card-hover:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 10px 15px rgba(0, 123, 255, 0.05);
+  transform: translateY(-6px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(22, 68, 117, 0.08);
 }
 .shimmer {
   background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
@@ -289,3 +329,372 @@ a { transition: color 0.2s var(--ease-out), opacity 0.2s var(--ease-out); }
 
 /* Button base transitions */
 button { transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), background-color 0.2s var(--ease-out); }
+
+/* Global Card Hover Transition Utility */
+.product-card, .category-card, .admin-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+.product-card:hover, .category-card:hover, .admin-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Modern Dropdown Select Styling */
+select {
+  accent-color: #164475;
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+select:focus {
+  border-color: #164475 !important;
+  box-shadow: 0 0 0 2px rgba(22, 68, 117, 0.15) !important;
+}
+
+/* ═══════════════════════════════════════════════
+   PRINT MEDIA STYLES FOR INVOICE PRINTING
+   ═══════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+  html, body {
+    background: #ffffff !important;
+    color: #0a1b2d !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  .no-print, nav, header, sidebar, aside {
+    display: none !important;
+  }
+  #printable-invoice-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  #printable-invoice {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+
+/* ─── Admin panel motion ──────────────────────────────────────────────────── */
+@keyframes adminFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes adminPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes adminSlideUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[admin"] { animation: none !important; }
+}
+
+/* ─── Admin display scale ─────────────────────────────────────────────────────
+   The panel draws at 70% — a 30% zoom-out — so more of every table, board, and
+   form fits on screen. `zoom` re-runs layout (a transform would not), so text
+   stays crisp and hit targets, scrollbars, and overlays all land where they
+   look. Overlays portalled to <body> carry `.admin-scope` themselves, so they
+   scale with the panel rather than towering over it. Change the one number
+   below to re-scale the whole panel; `place()` in views/admin/ui.tsx reads it
+   back when positioning portalled menus.                                    */
+.admin-scope {
+  --admin-zoom: 0.7;
+}
+
+@media screen {
+  .admin-scope {
+    zoom: var(--admin-zoom);
+  }
+
+  /* Lengths shrink with the zoom but the viewport does not, so anything sized
+     against the screen has to divide by the zoom to keep its full share of it —
+     `100vh` alone would leave the bottom of the screen bare. Elements that can
+     size themselves off a full-viewport ancestor use percentages instead and
+     need no correction. */
+  .admin-scope.h-screen {
+    height: calc(100vh / var(--admin-zoom));
+  }
+}
+
+/* ─── Admin scrollbars ────────────────────────────────────────────────────────
+   Thin, rounded, and only visible on hover so panels stay clean.            */
+.admin-scope *::-webkit-scrollbar,
+.admin-scope::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.admin-scope *::-webkit-scrollbar-track,
+.admin-scope::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-scope *::-webkit-scrollbar-thumb,
+.admin-scope::-webkit-scrollbar-thumb {
+  background: #D8D8DF;
+  border-radius: 999px;
+  transition: background 200ms ease;
+}
+
+.admin-scope *::-webkit-scrollbar-thumb:hover,
+.admin-scope::-webkit-scrollbar-thumb:hover {
+  background: #B9B9C4;
+}
+
+.admin-scope *::-webkit-scrollbar-corner,
+.admin-scope::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+.admin-scope,
+.admin-scope * {
+  scrollbar-width: thin;
+  scrollbar-color: #D8D8DF transparent;
+}
+
+/* ─── Admin entry animations ─────────────────────────────────────────────── */
+@keyframes adminRise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger direct children of a page section as it mounts. */
+.admin-enter > * {
+  animation: adminRise 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admin-enter > *:nth-child(1) { animation-delay: 0ms; }
+.admin-enter > *:nth-child(2) { animation-delay: 60ms; }
+.admin-enter > *:nth-child(3) { animation-delay: 120ms; }
+.admin-enter > *:nth-child(4) { animation-delay: 180ms; }
+.admin-enter > *:nth-child(5) { animation-delay: 240ms; }
+.admin-enter > *:nth-child(n+6) { animation-delay: 300ms; }
+
+/* Grid/list items fade up in sequence. */
+.admin-stagger > * {
+  animation: adminRise 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admin-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.admin-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.admin-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.admin-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.admin-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.admin-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.admin-stagger > *:nth-child(n+7) { animation-delay: 240ms; }
+
+/* Table rows ease in. */
+.admin-rows > tr {
+  animation: adminRise 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admin-rows > tr:nth-child(1) { animation-delay: 0ms; }
+.admin-rows > tr:nth-child(2) { animation-delay: 25ms; }
+.admin-rows > tr:nth-child(3) { animation-delay: 50ms; }
+.admin-rows > tr:nth-child(4) { animation-delay: 75ms; }
+.admin-rows > tr:nth-child(5) { animation-delay: 100ms; }
+.admin-rows > tr:nth-child(6) { animation-delay: 125ms; }
+.admin-rows > tr:nth-child(7) { animation-delay: 150ms; }
+.admin-rows > tr:nth-child(8) { animation-delay: 175ms; }
+.admin-rows > tr:nth-child(n+9) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-enter > *,
+  .admin-stagger > *,
+  .admin-rows > tr { animation: none !important; }
+}
+
+/* ─── Admin: universal hover transitions ──────────────────────────────────────
+   Anything interactive eases rather than snapping. Explicit per-component
+   transitions still win because they set their own duration/properties.     */
+.admin-scope button,
+.admin-scope a,
+.admin-scope select,
+.admin-scope input,
+.admin-scope textarea,
+.admin-scope label,
+.admin-scope [role="button"],
+.admin-scope tr,
+.admin-scope th,
+.admin-scope td,
+.admin-scope svg {
+  transition-property: color, background-color, border-color, fill, stroke,
+                       box-shadow, opacity, transform, filter;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Cards lift subtly on hover. */
+.admin-scope .admin-card-hover {
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 260ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 200ms ease;
+}
+.admin-scope .admin-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(16, 16, 26, 0.09);
+  border-color: #DCDCE3;
+}
+
+/* Images inside cards ease when their card is hovered. */
+.admin-scope img {
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-scope *,
+  .admin-scope *::before,
+  .admin-scope *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Admin typography ────────────────────────────────────────────────────────
+   Plus Jakarta Sans across the panel, matching the reference designs. Scoped to
+   the admin so the storefront keeps its existing type.                      */
+.admin-scope,
+.admin-scope *:not(i):not(svg) {
+  font-family: var(--font-admin), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  letter-spacing: -0.005em;
+}
+
+/* Admin modals render at the document root, so give them the font too. */
+[role="dialog"],
+[role="dialog"] *:not(i):not(svg) {
+  font-family: var(--font-admin), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  letter-spacing: -0.005em;
+}
+
+/* Drawer slide-in */
+/* The panel is right-anchored, so it animates its own `translate` property
+   (not `transform`) and explicitly lands on 0 — a stuck transform would drag
+   the resolved position with it. */
+@keyframes adminSlideIn {
+  from { opacity: 0; translate: 32px 0; }
+  to   { opacity: 1; translate: 0 0; }
+}
+
+/* Entrance only. The keyframes end on the element's resting values, so the
+   final frame equals the un-animated state and the panel always settles in the
+   right place. */
+.admin-drawer {
+  animation: adminSlideIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Storefront keeps the original system stack; the admin overrides it by class. */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+               "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+/* ─── Admin toast ─────────────────────────────────────────────────────────── */
+@keyframes adminToastIn {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.admin-toast {
+  /* translate is baked into the keyframes so the centring survives the animation */
+  transform: translate(-50%, 0);
+  animation: adminToastIn 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-admin), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ─── Image zoom on hover ─────────────────────────────────────────────────────
+   Put `admin-zoom` on the clipping wrapper around a feature image. It scales
+   when the wrapper, its row, or its enclosing button/link is hovered — so the
+   whole card responds, not just the pixels under the cursor. Row thumbnails in
+   tables get the same treatment via `tr:hover`.                             */
+.admin-scope .admin-zoom {
+  overflow: hidden;
+}
+
+.admin-scope .admin-zoom img {
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.admin-scope .admin-zoom:hover img,
+.admin-scope tr:hover .admin-zoom img,
+.admin-scope button:hover .admin-zoom img,
+.admin-scope a:hover .admin-zoom img,
+.admin-scope .admin-card-hover:hover > .admin-zoom img {
+  transform: scale(1.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-scope .admin-zoom img { transition: none; transform: none !important; }
+}
+
+/* ─── Dropdowns ───────────────────────────────────────────────────────────────
+   Native selects render the OS arrow, which ignores the panel's styling. Draw
+   our own chevron and reserve room for it, so every dropdown matches. Controls
+   that already render a chevron opt out with `.has-chevron`.                */
+.admin-scope select:not(.has-chevron),
+[role="dialog"] select:not(.has-chevron) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6E78' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  padding-right: 42px !important;
+  cursor: pointer;
+}
+
+/* ─── Control sizing ──────────────────────────────────────────────────────────
+   One height and radius for every form control in the panel. Status pills and
+   the compact row buttons opt out via their own explicit heights.           */
+.admin-scope input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+.admin-scope select:not(.has-chevron),
+[role="dialog"] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+[role="dialog"] select:not(.has-chevron) {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.admin-scope textarea,
+[role="dialog"] textarea {
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+/* Focus ring shared by every control. */
+.admin-scope input:focus-visible,
+.admin-scope select:focus-visible,
+.admin-scope textarea:focus-visible,
+[role="dialog"] input:focus-visible,
+[role="dialog"] select:focus-visible,
+[role="dialog"] textarea:focus-visible {
+  outline: none;
+  border-color: #5B32F0;
+  box-shadow: 0 0 0 3px rgba(91, 50, 240, 0.12);
+}

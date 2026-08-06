@@ -1,7 +1,7 @@
+'use client';
 import React, { useState } from "react";
 import { useSEO } from "../hooks/useSEO";
 import { Product } from "../types";
-import { BUNDLE_PRODUCTS } from "../data";
 import HeroSection from "../components/HeroSection";
 import TechCategories from "../components/TechCategories";
 import NewArrivals from "../components/NewArrivals";
@@ -28,7 +28,8 @@ export default function HomePage({ handleAddToCart, formatPrice }: HomePageProps
     keywords: "gaming PC, custom rig, laptops, computer accessories, tech store, Adamjee Computers, DHA Karachi, Pakistan"
   });
   // Bundle Builder
-  const [bundle, setBundle] = useState<Product[]>(() => [BUNDLE_PRODUCTS[0], BUNDLE_PRODUCTS[3]]);
+  const [bundle, setBundle] = useState<Product[]>([]);
+
   const [showBundleMessage, setShowBundleMessage] = useState(false);
 
   // Modal Triggers
@@ -36,11 +37,13 @@ export default function HomePage({ handleAddToCart, formatPrice }: HomePageProps
   const [isPerfModalOpen, setIsPerfModalOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  // Toggle Bundle addition
+  // Toggle Bundle addition (multi-selection support without auto-deselecting)
   const handleToggleBundle = (product: Product) => {
+    const prodId = product.id || (product as any)._id || product.code;
     setBundle(prev => {
-      if (prev.find(item => item.id === product.id)) {
-        return prev.filter(item => item.id !== product.id);
+      const exists = prev.some(item => (item.id || (item as any)._id || item.code) === prodId);
+      if (exists) {
+        return prev.filter(item => (item.id || (item as any)._id || item.code) !== prodId);
       }
       return [...prev, product];
     });
@@ -48,7 +51,7 @@ export default function HomePage({ handleAddToCart, formatPrice }: HomePageProps
 
   // Add Bundle to Cart
   const addBundleToCart = () => {
-    if (bundle.length < 3) {
+    if (bundle.length === 0) {
       setShowBundleMessage(true);
       return;
     }

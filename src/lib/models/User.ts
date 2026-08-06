@@ -28,6 +28,7 @@ const UserSchema = new mongoose.Schema({
     default: 'customer',
   },
   phone: { type: String, default: '' },
+  profilePicture: { type: String, default: '' },
   addresses: [{
     label: { type: String, default: 'Home' },
     fullName: String,
@@ -39,7 +40,12 @@ const UserSchema = new mongoose.Schema({
   }],
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   isActive: { type: Boolean, default: true },
+  // Password reset: only the SHA-256 hash of the token is stored, so a database
+  // read does not hand over working reset links.
+  resetPasswordToken: { type: String, select: false, default: null },
+  resetPasswordExpires: { type: Date, select: false, default: null },
 }, { timestamps: true });
+
 
 // Hash password before saving
 UserSchema.pre('save', async function (this: any) {

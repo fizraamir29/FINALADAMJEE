@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd adamjee-next && npm install && npm run build",
+  "outputDirectory": "adamjee-next/.next",
+  "framework": "nextjs"
+}

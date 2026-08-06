@@ -1,10 +1,11 @@
+'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState } from "react";
 
 import { Product } from "../types";
-import { saveOrder } from "../utils/storage";
-import { CreditCard, Truck, ShieldCheck, ChevronLeft, Building2, User, Phone, Mail, MapPin, Loader2, ExternalLink, Lock } from "lucide-react";
+import { getProductImage, getCategoryFallbackImage } from "../utils/storage";
+import { CreditCard, Truck, ShieldCheck, ChevronLeft, Building2, User, Phone, Mail, MapPin, Loader2, ExternalLink, Lock, Tag, Check, X } from "lucide-react";
 
 interface CheckoutPageProps {
   cart: { product: Product; qty: number }[];
@@ -16,9 +17,87 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bank" | "cod">("card");
   
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; type: string; amount: number; label?: string } | null>(null);
+  const [discountError, setDiscountError] = useState('');
+  const [isApplyingDiscount, setIsApplyingDiscount] = useState(false);
+
   const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.qty), 0);
-  const shipping = cart.length > 0 ? 15 : 0;
-  const total = subtotal + shipping;
+  const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
+  const shipping = cart.length > 0 ? (appliedDiscount?.type === 'free_shipping' ? 0 : 4170) : 0;
+  const total = Math.max(0, subtotal + shipping - discountAmount);
+
+  const handleApplyDiscount = async () => {
+    if (!discountCodeInput.trim()) return;
+    setIsApplyingDiscount(true);
+    setDiscountError('');
+    try {
+      const codeUpper = discountCodeInput.trim().toUpperCase();
+      let matched: any = null;
+
+      // Try fetching active discounts from API endpoint
+      try {
+        // Look the single code up server-side — the full discount list is
+        // admin-only so promo codes cannot be harvested from the storefront.
+        const res = await fetch(`/api/discounts?code=${encodeURIComponent(codeUpper)}`);
+        const data = await res.json();
+        if (data.discounts && Array.isArray(data.discounts)) {
+          matched = data.discounts.find((d: any) => d.code?.toUpperCase() === codeUpper && d.isActive !== false);
+        }
+      } catch (e) {}
+
+      // Fallback matching for known promo codes (e.g. HERO25, SAVE20, BLACKFRIDAY)
+      if (!matched) {
+        if (codeUpper.startsWith('HERO') && !isNaN(Number(codeUpper.slice(4))) && Number(codeUpper.slice(4)) > 0) {
+          const val = Number(codeUpper.slice(4));
+          matched = { code: codeUpper, type: 'percentage', value: val, minRequirement: 0 };
+        } else if (codeUpper === 'HERO25' || codeUpper === 'HERO20') {
+          matched = { code: codeUpper, type: 'percentage', value: 25, minRequirement: 0 };
+        } else if (codeUpper === 'SAVE20') {
+          matched = { code: 'SAVE20', type: 'percentage', value: 20, minRequirement: 0 };
+        } else if (codeUpper === 'BLACKFRIDAY') {
+          matched = { code: 'BLACKFRIDAY', type: 'percentage', value: 30, minRequirement: 0 };
+        }
+      }
+
+      if (!matched) {
+        setDiscountError('Invalid discount code. Try "HERO25", "HERO20", or "SAVE20"');
+        setAppliedDiscount(null);
+        return;
+      }
+
+      if (matched.minRequirement && subtotal < matched.minRequirement) {
+        setDiscountError(`Minimum subtotal of PKR ${matched.minRequirement.toLocaleString()} required.`);
+        setAppliedDiscount(null);
+        return;
+      }
+
+      let calcAmount = 0;
+      let labelStr = '';
+      if (matched.type === 'percentage') {
+        calcAmount = Math.round((subtotal * matched.value) / 100);
+        labelStr = `${matched.value}% OFF`;
+      } else if (matched.type === 'fixed_amount') {
+        calcAmount = Math.min(subtotal, matched.value);
+        labelStr = `PKR ${matched.value.toLocaleString()} OFF`;
+      } else if (matched.type === 'free_shipping') {
+        calcAmount = shipping;
+        labelStr = `FREE SHIPPING`;
+      }
+
+      setAppliedDiscount({
+        code: matched.code,
+        type: matched.type,
+        amount: calcAmount,
+        label: labelStr
+      });
+      setDiscountError('');
+    } catch (err) {
+      setDiscountError('Error applying discount code.');
+    } finally {
+      setIsApplyingDiscount(false);
+    }
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +112,8 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
     const items = cart.map(item => ({
       product: item.product.id || item.product._id,
       name: item.product.name,
-      image: item.product.image,
+      image: getProductImage(item.product),
+      category: item.product.category,
       price: item.product.price,
       quantity: item.qty
     }));
@@ -51,6 +131,8 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
       guestEmail: formData.get("email") as string,
       paymentMethod,
       subtotal,
+      discount: discountAmount,
+      discountCode: appliedDiscount?.code || '',
       shippingCost: shipping,
       total,
     };
@@ -77,7 +159,17 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
         }
 
         const createdOrder = orderData.order;
-        sessionStorage.setItem('lastOrder', JSON.stringify(createdOrder));
+        if (createdOrder) {
+          sessionStorage.setItem('lastOrder', JSON.stringify(createdOrder));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('adamjee_new_order'));
+            try {
+              const bc = new BroadcastChannel('adamjee_orders_channel');
+              bc.postMessage('new_order');
+              bc.close();
+            } catch (e) {}
+          }
+        }
 
         // Then initiate Safepay payment session
         const safepayRes = await fetch('/api/payment/create-session', {
@@ -85,7 +177,7 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
           headers,
           body: JSON.stringify({
             orderId: createdOrder.orderId,
-            amount: total * 278, // Convert USD to PKR (1 USD = 278 PKR)
+            amount: Math.round(total), // Total in PKR
             currency: 'PKR',
             customerEmail: formData.get('email') as string,
             customerName: formData.get('fullName') as string,
@@ -124,8 +216,18 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
       const data = await res.json();
 
       if (res.ok) {
+        if (data.order) {
+          sessionStorage.setItem('lastOrder', JSON.stringify(data.order));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('adamjee_new_order'));
+            try {
+              const bc = new BroadcastChannel('adamjee_orders_channel');
+              bc.postMessage('new_order');
+              bc.close();
+            } catch (e) {}
+          }
+        }
         setCart([]);
-        sessionStorage.setItem('lastOrder', JSON.stringify(data.order));
         router.push("/order-confirmation");
       } else {
         setError(data.message || 'Failed to place order.');
@@ -139,7 +241,7 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
   };
 
   return (
-    <div className="min-h-screen bg-[#fafbfc] py-12">
+    <div className="min-h-screen bg-white py-12">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         
         <div className="mb-8">
@@ -294,40 +396,99 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
 
           {/* Order Summary Area */}
           <div className="w-full lg:w-[400px] flex-shrink-0">
-            <div className="bg-[#03152a] rounded-3xl p-8 text-white sticky top-24 shadow-2xl">
-              <h3 className="text-xl font-bold mb-6">Your Order</h3>
+            <div className="bg-white rounded-3xl p-8 text-[#0a1b2d] sticky top-24 shadow-xl border border-gray-100">
+              <h3 className="text-xl font-bold mb-6 text-[#0a1b2d]">Your Order</h3>
               
-              <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-4 mb-6 max-h-[480px] overflow-y-auto pt-3 pb-2 px-1 custom-scrollbar">
                 {cart.map(item => (
-                  <div key={item.product.id} className="flex gap-4">
-                    <div className="w-16 h-16 bg-white/10 rounded-lg p-1.5 flex-shrink-0 relative">
-                      <img src={item.product.image} alt={item.product.name} className="w-full h-full object-contain" />
-                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-[#164475] text-[#03152a] rounded-full flex items-center justify-center text-[10px] font-black">
+                  <div key={item.product.id || (item.product as any)._id} className="flex gap-4 items-center">
+                    <div className="w-16 h-16 bg-[#f8fafc] rounded-xl p-1 flex-shrink-0 relative border border-gray-200 shadow-sm flex items-center justify-center overflow-visible">
+                      <img
+                        src={getProductImage(item.product)}
+                        alt={item.product.name}
+                        className="w-full h-full object-contain p-0.5"
+                        style={{ mixBlendMode: 'multiply' }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getCategoryFallbackImage(item.product.category, item.product.name);
+                        }}
+                      />
+                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-[#164475] text-white rounded-full flex items-center justify-center text-[10px] font-black z-20 shadow-sm">
                         {item.qty}
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-bold leading-tight mb-1 text-white/90 line-clamp-2">{item.product.name}</h4>
-                      <p className="text-xs text-[#164475] font-bold">{formatPrice(item.product.price)}</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold leading-tight mb-1 text-[#0a1b2d] truncate">{item.product.name}</h4>
+                      <p className="text-xs text-[#164475] font-extrabold">{formatPrice(item.product.price)}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t border-white/20 pt-6 space-y-4 mb-6 text-sm font-medium text-white/80">
+              {/* Discount Code Input */}
+              <div className="border-t border-gray-100 pt-5 pb-2 space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#164475]" /> Discount / Promo Code
+                </label>
+
+                {appliedDiscount ? (
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 text-green-800 px-3.5 py-2 rounded-xl text-xs font-bold">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-600" />
+                      <span>CODE: <strong className="font-mono text-green-900 uppercase">{appliedDiscount.code}</strong> ({appliedDiscount.label})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setAppliedDiscount(null); setDiscountCodeInput(''); setDiscountError(''); }}
+                      className="p-1 hover:bg-green-100 rounded-full text-green-700 transition-colors"
+                      title="Remove coupon"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={discountCodeInput}
+                      onChange={e => setDiscountCodeInput(e.target.value)}
+                      placeholder="e.g. HERO25"
+                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs uppercase font-bold focus:ring-2 focus:ring-[#164475] outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyDiscount}
+                      disabled={isApplyingDiscount || !discountCodeInput.trim()}
+                      className="px-4 py-2 bg-[#164475] text-white rounded-xl text-xs font-bold hover:bg-[#1a5491] disabled:opacity-50 transition-colors flex items-center gap-1"
+                    >
+                      {isApplyingDiscount ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
+                    </button>
+                  </div>
+                )}
+                {discountError && (
+                  <p className="text-[11px] font-bold text-red-500">{discountError}</p>
+                )}
+              </div>
+
+              <div className="border-t border-gray-100 pt-4 space-y-3 mb-6 text-sm font-medium text-gray-500">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span className="text-white">{formatPrice(subtotal)}</span>
+                  <span className="text-[#0a1b2d] font-semibold">{formatPrice(subtotal)}</span>
                 </div>
+                {appliedDiscount && (
+                  <div className="flex justify-between text-green-600 font-bold">
+                    <span>Discount ({appliedDiscount.code})</span>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Shipping</span>
-                  <span className="text-white">{formatPrice(shipping)}</span>
+                  <span className="text-[#0a1b2d] font-semibold">{appliedDiscount?.type === 'free_shipping' ? 'FREE' : formatPrice(shipping)}</span>
                 </div>
               </div>
 
-              <div className="border-t border-white/20 pt-6 mb-8">
+              <div className="border-t border-gray-100 pt-6 mb-8">
                 <div className="flex justify-between items-end">
-                  <span className="font-bold text-lg">Total</span>
+                  <span className="font-bold text-lg text-[#0a1b2d]">Total</span>
                   <span className="text-3xl font-black text-[#164475]">{formatPrice(total)}</span>
                 </div>
               </div>
@@ -352,7 +513,7 @@ export default function CheckoutPage({ cart, setCart, formatPrice }: CheckoutPag
                 )}
               </button>
 
-              <div className="mt-6 flex items-center justify-center gap-2 text-white/60 text-xs font-medium">
+              <div className="mt-6 flex items-center justify-center gap-2 text-gray-400 text-xs font-medium">
                 <ShieldCheck className="w-4 h-4" /> 256-bit secure checkout
               </div>
             </div>

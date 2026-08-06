@@ -1,3 +1,4 @@
+'use client';
 import React from "react";
 import { Check } from "lucide-react";
 const whitePcSetupImg = "/images/white_pc_setup.png";

@@ -1,8 +1,10 @@
+'use client';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
-import { LogOut, Package, Heart, MapPin, User, ChevronRight, Bell, LayoutDashboard, Clock, Mail, ShieldCheck, ShoppingCart, Trash2, X, AlertCircle } from 'lucide-react';
-import { getProducts, getWishlist, toggleWishlist } from '../utils/storage';
+import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+import { LogOut, Package, MapPin, User, ChevronRight, Bell, LayoutDashboard, Clock, Mail, ShieldCheck, ShoppingCart, Trash2, X, Camera, Phone, Edit2, Check, Plus, Minus } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 import { Product } from '../types';
 
@@ -11,16 +13,49 @@ interface AccountPageProps {
   formatPrice: (usdAmount: number) => string;
 }
 
-type Tab = 'dashboard' | 'orders' | 'wishlist' | 'addresses' | 'notifications';
+type Tab = 'dashboard' | 'orders' | 'cart' | 'addresses' | 'notifications' | 'profile';
 
 export default function AccountPage({ handleAddToCart, formatPrice }: AccountPageProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [user, setUser] = useState<any>(null);
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as Tab) || 'dashboard';
+  
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [orders, setOrders] = useState<any[]>([]);
-  const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { user, token, isLoggedIn, logout, updateUser } = useAuth();
+  const { cart, setCart, formatPrice: appFormatPrice, setCartOpen } = useApp();
+  const fmtPrice = formatPrice || appFormatPrice;
+
+  // Profile editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Security / Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Address state
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null);
+  const [addressForm, setAddressForm] = useState({
+    label: 'Home',
+    fullName: '',
+    street: '',
+    city: '',
+    postalCode: '',
+    country: 'Pakistan',
+    phone: '',
+  });
 
   const [notifications, setNotifications] = useState<any[]>([
     {
@@ -41,50 +76,52 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
     }
   ]);
 
-  // Fetch initial profile & orders
+  // Sync active tab from URL search params
+  useEffect(() => {
+    const tab = searchParams.get('tab') as Tab;
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
+
+  // Auth guard — redirect to login if not authenticated (must be in useEffect, not render)
+  useEffect(() => {
+    if (!loading && !isLoggedIn) {
+      router.push('/login');
+    }
+  }, [loading, isLoggedIn, router]);
+
+  // Fetch orders
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('token');
       if (!token) {
         router.push('/login');
         return;
       }
 
       try {
-        const [userRes, ordersRes] = await Promise.all([
-          fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/orders/my', { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-
-        if (!userRes.ok) throw new Error('Failed to fetch user');
-        const userData = await userRes.json();
-        setUser(userData.user || userData.data);
+        const ordersRes = await fetch('/api/orders/my', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
-          // Correct key returned by controller is 'orders', not 'data'
           setOrders(ordersData.orders || []);
         }
       } catch (error) {
-        console.error('Error fetching account data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        router.push('/login');
+        console.error('Error fetching orders:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [router]);
+    if (isLoggedIn) {
+      fetchData();
+    } else {
+      setLoading(false);
+    }
+  }, [token, isLoggedIn, router]);
 
-  // Load wishlist products
-  useEffect(() => {
-    const list = getWishlist();
-    const allProds = getProducts();
-    const filtered = allProds.filter(p => list.includes(p.id || p._id || ''));
-    setWishlistItems(filtered);
-  }, [activeTab]);
+
+
 
   // Dynamically populate order notifications
   useEffect(() => {
@@ -105,28 +142,143 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
     }
   }, [orders]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
-  };
+  // Init edit fields when user changes
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name || '');
+      setEditPhone(user.phone || '');
+    }
+  }, [user]);
 
-  const handleRemoveFromWishlist = (productId: string) => {
-    toggleWishlist(productId);
-    setWishlistItems(prev => prev.filter(p => (p.id || p._id) !== productId));
+  const handleLogout = () => {
+    logout();
+    router.push('/');
   };
 
   const handleMarkAsRead = (notifId: string) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
   };
 
-  if (loading) {
+  // Helper: save any profile fields to DB permanently
+  const saveProfileToDb = async (fields: { name?: string; phone?: string; profilePicture?: string; addresses?: any[] }) => {
+    if (!token) return;
+    try {
+      await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(fields),
+      });
+    } catch (err) {
+      console.error('Failed to save profile to DB:', err);
+    }
+  };
+
+  // Profile picture upload — saves to DB
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileMessage('Image must be under 2MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string;
+      updateUser({ profilePicture: base64 });   // instant UI update
+      await saveProfileToDb({ profilePicture: base64 });  // persist to MongoDB
+      setProfileMessage('Profile picture updated!');
+      setTimeout(() => setProfileMessage(''), 3000);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveName = async () => {
+    if (!editName.trim()) return;
+    setProfileSaving(true);
+    try {
+      updateUser({ name: editName.trim() });   // instant UI
+      await saveProfileToDb({ name: editName.trim() });  // persist to MongoDB
+      setIsEditingName(false);
+      setProfileMessage('Name updated successfully!');
+      setTimeout(() => setProfileMessage(''), 3000);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    setProfileSaving(true);
+    try {
+      updateUser({ phone: editPhone.trim() });   // instant UI
+      await saveProfileToDb({ phone: editPhone.trim() });  // persist to MongoDB
+      setIsEditingPhone(false);
+      setProfileMessage('Phone number saved!');
+      setTimeout(() => setProfileMessage(''), 3000);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'All fields are required.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters long.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+
+    setPasswordChanging(true);
+    setPasswordMsg(null);
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPasswordMsg({ type: 'success', text: data.message || 'Password changed successfully!' });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordMsg({ type: 'error', text: data.message || 'Failed to change password.' });
+      }
+    } catch (err) {
+      console.error('Password change error:', err);
+      setPasswordMsg({ type: 'error', text: 'An error occurred while updating your password.' });
+    } finally {
+      setPasswordChanging(false);
+    }
+  };
+
+  // Show spinner while auth or data is loading
+  if (loading || !user) {
     return (
       <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc] flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-[#164475] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
+
+  const getUserInitials = () => {
+    if (!user?.name) return 'U';
+    const parts = user.name.trim().split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0][0].toUpperCase();
+  };
 
   const getOrderStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -140,6 +292,225 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
 
   const renderContent = () => {
     switch(activeTab) {
+      case 'profile':
+        return (
+          <div className="space-y-8 animate-fade-in-up">
+            <h2 className="text-2xl font-black text-[#0a1b2d]">My Profile</h2>
+
+            {profileMessage && (
+              <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-2xl text-green-700 text-sm font-semibold">
+                <Check className="w-4 h-4 flex-shrink-0" /> {profileMessage}
+              </div>
+            )}
+
+            {/* Profile Picture */}
+            <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+              <h3 className="text-sm font-black text-[#0a1b2d] uppercase tracking-wider mb-6">Profile Picture</h3>
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="relative group">
+                  {user.profilePicture ? (
+                    <img
+                      src={user.profilePicture}
+                      alt={user.name}
+                      className="w-28 h-28 rounded-2xl object-cover border-4 border-[#164475]/10 shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-[#164475] to-[#0a1b2d] flex items-center justify-center text-white font-black text-4xl shadow-lg border-4 border-[#164475]/10">
+                      {getUserInitials()}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Camera className="w-6 h-6 text-white" />
+                  </button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleProfilePictureChange}
+                />
+                <div className="text-center sm:text-left">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm flex items-center gap-2 mx-auto sm:mx-0"
+                  >
+                    <Camera className="w-4 h-4" /> Change Photo
+                  </button>
+                  <p className="text-xs text-gray-400 mt-2 font-medium">JPG, PNG or GIF · Max 2MB</p>
+                  {user.profilePicture && (
+                    <button
+                      onClick={() => { updateUser({ profilePicture: '' }); setProfileMessage('Profile picture removed'); setTimeout(() => setProfileMessage(''), 3000); }}
+                      className="text-red-400 hover:text-red-600 text-xs font-bold mt-2 flex items-center gap-1 mx-auto sm:mx-0"
+                    >
+                      <Trash2 className="w-3 h-3" /> Remove photo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Personal Info */}
+            <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm space-y-6">
+              <h3 className="text-sm font-black text-[#0a1b2d] uppercase tracking-wider">Personal Information</h3>
+
+              {/* Full Name */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Full Name</p>
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-[#164475]/40 focus:ring-2 focus:ring-[#164475]/30 outline-none text-sm font-semibold text-[#0a1b2d]"
+                        onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                        autoFocus
+                      />
+                      <button onClick={handleSaveName} disabled={profileSaving} className="w-9 h-9 bg-[#164475] text-white rounded-xl flex items-center justify-center hover:bg-[#0a1b2d] transition-all flex-shrink-0">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { setIsEditingName(false); setEditName(user.name); }} className="w-9 h-9 bg-gray-100 text-gray-500 rounded-xl flex items-center justify-center hover:bg-gray-200 transition-all flex-shrink-0">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="font-bold text-[#0a1b2d] text-base">{user.name}</p>
+                  )}
+                </div>
+                {!isEditingName && (
+                  <button onClick={() => setIsEditingName(true)} className="flex items-center gap-1.5 text-[#164475] hover:text-[#0a1b2d] text-xs font-bold flex-shrink-0 mt-5">
+                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                  </button>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email Address</p>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <p className="font-semibold text-[#0a1b2d] text-sm">{user.email}</p>
+                  <span className="bg-green-50 text-green-600 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider border border-green-200">Verified</span>
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
+                  {isEditingPhone ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={e => setEditPhone(e.target.value)}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-[#164475]/40 focus:ring-2 focus:ring-[#164475]/30 outline-none text-sm font-semibold text-[#0a1b2d]"
+                        placeholder="+92 300 0000000"
+                        onKeyDown={e => e.key === 'Enter' && handleSavePhone()}
+                        autoFocus
+                      />
+                      <button onClick={handleSavePhone} disabled={profileSaving} className="w-9 h-9 bg-[#164475] text-white rounded-xl flex items-center justify-center hover:bg-[#0a1b2d] transition-all flex-shrink-0">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { setIsEditingPhone(false); setEditPhone(user.phone || ''); }} className="w-9 h-9 bg-gray-100 text-gray-500 rounded-xl flex items-center justify-center hover:bg-gray-200 transition-all flex-shrink-0">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <p className="font-semibold text-[#0a1b2d] text-sm">{user.phone || <span className="text-gray-400 italic">Not added</span>}</p>
+                    </div>
+                  )}
+                </div>
+                {!isEditingPhone && (
+                  <button onClick={() => setIsEditingPhone(true)} className="flex items-center gap-1.5 text-[#164475] hover:text-[#0a1b2d] text-xs font-bold flex-shrink-0 mt-5">
+                    <Edit2 className="w-3.5 h-3.5" /> {user.phone ? 'Edit' : 'Add'}
+                  </button>
+                )}
+              </div>
+
+              {/* Role */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Account Type</p>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#164475] flex-shrink-0" />
+                  <span className="capitalize font-bold text-[#0a1b2d] text-sm">{user.role === 'admin' ? '⚡ Admin' : 'Standard Customer'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Password & Security Card */}
+            <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm space-y-6">
+              <h3 className="text-sm font-black text-[#0a1b2d] uppercase tracking-wider">Security & Change Password</h3>
+
+              {passwordMsg && (
+                <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                  passwordMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {passwordMsg.type === 'success' ? <Check className="w-4 h-4 flex-shrink-0" /> : <X className="w-4 h-4 flex-shrink-0" />}
+                  {passwordMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Current Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-semibold text-[#0a1b2d]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">New Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-semibold text-[#0a1b2d]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Confirm New Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Re-type new password"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-semibold text-[#0a1b2d]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={passwordChanging}
+                  className="bg-[#164475] hover:bg-[#0a1b2d] text-white font-extrabold px-6 py-2.5 rounded-xl text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer border-none"
+                >
+                  {passwordChanging ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Update Password'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+
       case 'dashboard':
         return (
           <div className="space-y-8 animate-fade-in-up">
@@ -149,13 +520,25 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
               <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-center text-3xl font-black">
-                    {user?.name?.charAt(0).toUpperCase()}
+                  {/* Avatar */}
+                  <div className="flex-shrink-0">
+                    {user?.profilePicture ? (
+                      <img
+                        src={user.profilePicture}
+                        alt={user.name}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-center text-3xl font-black">
+                        {getUserInitials()}
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black">Hello, {user?.name}!</h2>
+                    <h2 className="text-2xl font-black">Hello, {user?.name?.split(' ')[0]}!</h2>
                     <p className="text-white/60 text-xs mt-1">Account Level: Standard Customer</p>
                     <p className="text-white/80 text-sm mt-0.5">{user?.email}</p>
+                    {user?.phone && <p className="text-white/60 text-xs mt-0.5">📞 {user.phone}</p>}
                   </div>
                 </div>
                 <button onClick={handleLogout} className="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 border border-white/10 transition-colors">
@@ -177,15 +560,16 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
                 </div>
               </button>
 
-              <button onClick={() => setActiveTab('wishlist')} className="bg-white p-6 rounded-3xl border border-gray-150 flex items-center gap-4 hover:shadow-lg transition-all text-left">
-                <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center flex-shrink-0">
-                  <Heart className="w-6 h-6" />
+              <button onClick={() => setActiveTab('cart')} className="bg-white p-6 rounded-3xl border border-gray-150 flex items-center gap-4 hover:shadow-lg transition-all text-left">
+                <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
+                  <ShoppingCart className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-black text-2xl text-[#0a1b2d] leading-none mb-1">{wishlistItems.length}</h3>
-                  <p className="text-xs text-[#64748b] font-semibold">Items in Wishlist</p>
+                  <h3 className="font-black text-2xl text-[#0a1b2d] leading-none mb-1">{cart.reduce((t, i) => t + i.qty, 0)}</h3>
+                  <p className="text-xs text-[#64748b] font-semibold">Items in Cart</p>
                 </div>
               </button>
+
 
               <button onClick={() => setActiveTab('notifications')} className="bg-white p-6 rounded-3xl border border-gray-150 flex items-center gap-4 hover:shadow-lg transition-all text-left">
                 <div className="w-12 h-12 rounded-2xl bg-blue-55/10 text-blue-600 flex items-center justify-center flex-shrink-0">
@@ -326,85 +710,401 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
             )}
           </div>
         );
-      case 'wishlist':
+      case 'cart': {
+        const cartTotal = cart.reduce((sum, i) => sum + i.product.price * i.qty, 0);
+        const cartQty = cart.reduce((sum, i) => sum + i.qty, 0);
+
+        const removeFromCart = (productId: string) => {
+          setCart(prev => prev.filter(i => (i.product.id || i.product._id) !== productId));
+        };
+
+        const changeQty = (productId: string, delta: number) => {
+          setCart(prev => prev
+            .map(i => (i.product.id || i.product._id) === productId ? { ...i, qty: i.qty + delta } : i)
+            .filter(i => i.qty > 0)
+          );
+        };
+
         return (
           <div className="space-y-6 animate-fade-in-up">
-            <h2 className="text-2xl font-black text-[#0a1b2d]">My Wishlist</h2>
-            
-            {wishlistItems.length === 0 ? (
-              <div className="text-center py-20 text-gray-400 bg-[#fafbfc] rounded-3xl border border-dashed border-gray-250">
-                <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-lg font-bold text-[#0a1b2d] mb-1">Your Wishlist is Empty</p>
-                <p className="text-sm max-w-sm mx-auto mb-6">Explore our catalog and click the heart icon on your favorite setups to save them here.</p>
-                <Link href="/" className="inline-flex items-center gap-2 bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold px-6 py-3 rounded-full text-xs transition-all shadow-md">
-                  Explore Products
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-[#0a1b2d]">My Cart</h2>
+              {cart.length > 0 && (
+                <button
+                  onClick={() => setCart([])}
+                  className="text-red-400 hover:text-red-600 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Clear Cart
+                </button>
+              )}
+            </div>
+
+            {cart.length === 0 ? (
+              <div className="text-center py-20 bg-[#fafbfc] rounded-3xl border-2 border-dashed border-gray-200">
+                <ShoppingCart className="w-14 h-14 text-gray-300 mx-auto mb-4" />
+                <p className="text-lg font-black text-[#0a1b2d] mb-1">Your Cart is Empty</p>
+                <p className="text-sm text-gray-400 font-medium mb-6 max-w-xs mx-auto">Browse our shop and add products to your cart.</p>
+                <Link href="/category/all" className="inline-flex items-center gap-2 bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold px-6 py-3 rounded-full text-xs transition-all shadow-md">
+                  <ShoppingCart className="w-4 h-4" /> Shop Now
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {wishlistItems.map(item => (
-                  <div key={item.id || item._id} className="flex gap-4 p-5 border border-gray-150 rounded-3xl items-center bg-white shadow-sm hover:shadow-md transition-shadow relative group">
-                    
-                    <button 
-                      onClick={() => handleRemoveFromWishlist(item.id || item._id || '')}
-                      className="absolute top-4 right-4 w-7 h-7 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+              <div className="space-y-4">
+                {/* Cart Items */}
+                <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-gray-100">
+                  {cart.map(({ product, qty }) => {
+                    const pId = product.id || product._id || '';
+                    return (
+                      <div key={pId} className="flex items-center gap-4 p-5 hover:bg-gray-50/50 transition-colors">
+                        {/* Product Image */}
+                        <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl p-1.5 flex-shrink-0 flex items-center justify-center">
+                          <img src={product.image} alt={product.name} className="max-w-full max-h-full object-contain" />
+                        </div>
 
-                    <div className="w-20 h-20 bg-gray-50 border border-gray-100 rounded-2xl p-2 flex-shrink-0 flex items-center justify-center">
-                      <img src={item.image} alt={item.name} className="max-w-full max-h-full object-contain" />
+                        {/* Product Info */}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{product.category}</span>
+                          <h4 className="font-extrabold text-[#0a1b2d] text-sm truncate leading-snug">{product.name}</h4>
+                          <p className="text-[#164475] font-extrabold text-sm mt-0.5">{fmtPrice(product.price)}</p>
+                        </div>
+
+                        {/* Qty Controls */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => changeQty(pId, -1)}
+                            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-[#164475] hover:text-white text-gray-600 flex items-center justify-center transition-all font-bold"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="w-8 text-center font-black text-[#0a1b2d] text-sm">{qty}</span>
+                          <button
+                            onClick={() => changeQty(pId, 1)}
+                            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-[#164475] hover:text-white text-gray-600 flex items-center justify-center transition-all font-bold"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Item Total */}
+                        <div className="text-right flex-shrink-0 min-w-[70px]">
+                          <p className="font-extrabold text-[#0a1b2d] text-sm">{fmtPrice(product.price * qty)}</p>
+                          <p className="text-[10px] text-gray-400 font-medium">{qty} × {fmtPrice(product.price)}</p>
+                        </div>
+
+                        {/* Remove */}
+                        <button
+                          onClick={() => removeFromCart(pId)}
+                          className="w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-all flex-shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Order Summary */}
+                <div className="bg-gradient-to-br from-[#0a1b2d] to-[#164475] rounded-3xl p-6 text-white">
+                  <h3 className="font-black text-lg mb-4">Order Summary</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-white/70">
+                      <span>{cartQty} item{cartQty !== 1 ? 's' : ''}</span>
+                      <span className="font-bold text-white">{fmtPrice(cartTotal)}</span>
                     </div>
-
-                    <div className="flex-1 min-w-0 pr-4">
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{item.category}</span>
-                      <h4 className="font-extrabold text-[#0a1b2d] text-sm truncate leading-snug mt-0.5">{item.name}</h4>
-                      <p className="text-[#164475] font-extrabold text-sm mt-1">{formatPrice(item.price)}</p>
+                    <div className="flex justify-between text-white/70">
+                      <span>Estimated Shipping</span>
+                      <span className="font-bold text-green-300">Free</span>
                     </div>
-
-                    <button 
-                      onClick={() => handleAddToCart(item)}
-                      className="bg-[#164475] text-[#03152a] font-bold p-3 rounded-2xl hover:bg-[#164475]/90 flex items-center justify-center flex-shrink-0"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                    </button>
+                    <div className="border-t border-white/20 pt-3 mt-3 flex justify-between">
+                      <span className="font-black text-base">Total</span>
+                      <span className="font-black text-xl text-green-300">{fmtPrice(cartTotal)}</span>
+                    </div>
                   </div>
-                ))}
+                  <button
+                    onClick={() => { setCartOpen(true); }}
+                    className="w-full mt-5 bg-white text-[#0a1b2d] font-black py-3.5 rounded-2xl hover:bg-gray-100 transition-all text-sm flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <ShoppingCart className="w-4 h-4" /> Proceed to Checkout
+                  </button>
+                </div>
               </div>
             )}
           </div>
         );
-      case 'addresses':
+      }
+
+      case 'addresses': {
+        const savedAddresses: any[] = user?.addresses || [];
+
+        const openAddModal = (idx?: number) => {
+          if (idx !== undefined && savedAddresses[idx]) {
+            const a = savedAddresses[idx];
+            setAddressForm({
+              label: a.label || 'Home',
+              fullName: a.fullName || user?.name || '',
+              street: a.street || '',
+              city: a.city || '',
+              postalCode: a.postalCode || '',
+              country: a.country || 'Pakistan',
+              phone: a.phone || user?.phone || '',
+            });
+            setEditingAddressIdx(idx);
+          } else {
+            setAddressForm({
+              label: 'Home',
+              fullName: user?.name || '',
+              street: '',
+              city: '',
+              postalCode: '',
+              country: 'Pakistan',
+              phone: user?.phone || '',
+            });
+            setEditingAddressIdx(null);
+          }
+          setAddressModalOpen(true);
+        };
+
+        const saveAddress = async () => {
+          if (!addressForm.fullName || !addressForm.street || !addressForm.city) return;
+          const updated = [...savedAddresses];
+          const newAddr = { ...addressForm, isDefault: editingAddressIdx === null ? savedAddresses.length === 0 : savedAddresses[editingAddressIdx]?.isDefault };
+          if (editingAddressIdx !== null) {
+            updated[editingAddressIdx] = newAddr;
+          } else {
+            updated.push(newAddr);
+          }
+          updateUser({ addresses: updated });       // instant UI
+          await saveProfileToDb({ addresses: updated }); // persist to MongoDB
+          setAddressModalOpen(false);
+        };
+
+        const deleteAddress = async (idx: number) => {
+          const updated = savedAddresses.filter((_, i) => i !== idx);
+          if (updated.length > 0) updated[0] = { ...updated[0], isDefault: true };
+          updateUser({ addresses: updated });
+          await saveProfileToDb({ addresses: updated });
+        };
+
+        const setDefault = async (idx: number) => {
+          const updated = savedAddresses.map((a, i) => ({ ...a, isDefault: i === idx }));
+          updateUser({ addresses: updated });
+          await saveProfileToDb({ addresses: updated });
+        };
+
+
         return (
           <div className="space-y-6 animate-fade-in-up">
-            <h2 className="text-2xl font-black text-[#0a1b2d]">Saved Addresses</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              <div className="p-6 border-2 border-[#164475] rounded-3xl bg-[#f8fafc] relative shadow-sm">
-                <span className="absolute top-6 right-6 bg-[#164475] text-white text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">Default</span>
-                <h4 className="font-extrabold text-[#0a1b2d] mb-3 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#164475]" /> Home Address
-                </h4>
-                <div className="text-gray-500 text-sm leading-relaxed space-y-1">
-                  <p className="font-bold text-[#0a1b2d]">{user?.name}</p>
-                  <p>{user?.email}</p>
-                  <p>DHA Phase 6, Street 4, House 12A</p>
-                  <p>Karachi, Pakistan</p>
-                </div>
-                <div className="mt-6 flex gap-4 text-xs font-bold border-t border-gray-150 pt-4">
-                  <button className="text-[#164475] hover:underline">Edit Address</button>
-                  <button className="text-[#0a1b2d] hover:underline">Delete</button>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-[#0a1b2d]">Address Book</h2>
+              <button
+                onClick={() => openAddModal()}
+                className="flex items-center gap-2 bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Add Address
+              </button>
+            </div>
+
+            {savedAddresses.length === 0 ? (
+              <div className="text-center py-20 bg-[#fafbfc] rounded-3xl border-2 border-dashed border-gray-200">
+                <MapPin className="w-14 h-14 text-gray-300 mx-auto mb-4" />
+                <p className="text-lg font-black text-[#0a1b2d] mb-1">No Saved Addresses</p>
+                <p className="text-sm text-gray-400 font-medium mb-6 max-w-xs mx-auto">Add your delivery address so we can ship your orders quickly.</p>
+                <button
+                  onClick={() => openAddModal()}
+                  className="inline-flex items-center gap-2 bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold px-6 py-3 rounded-full text-xs transition-all shadow-md"
+                >
+                  <Plus className="w-4 h-4" /> Add Your First Address
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {savedAddresses.map((addr, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-6 rounded-3xl relative shadow-sm transition-all ${
+                      addr.isDefault
+                        ? 'border-2 border-[#164475] bg-[#f0f7ff]'
+                        : 'border border-gray-200 bg-white hover:border-[#164475]/40'
+                    }`}
+                  >
+                    {addr.isDefault && (
+                      <span className="absolute top-5 right-5 bg-[#164475] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Default</span>
+                    )}
+                    <h4 className="font-extrabold text-[#0a1b2d] mb-3 flex items-center gap-2 pr-16">
+                      <MapPin className="w-4 h-4 text-[#164475] flex-shrink-0" />
+                      {addr.label || 'Home'} Address
+                    </h4>
+                    <div className="text-gray-600 text-sm leading-relaxed space-y-1">
+                      <p className="font-bold text-[#0a1b2d]">{addr.fullName}</p>
+                      {addr.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" /> {addr.phone}</p>}
+                      <p className="flex items-start gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <span>{addr.street}, {addr.city}{addr.postalCode ? `, ${addr.postalCode}` : ''}, {addr.country || 'Pakistan'}</span>
+                      </p>
+                    </div>
+                    <div className="mt-5 pt-4 border-t border-gray-100 flex items-center gap-3 text-xs font-bold">
+                      <button onClick={() => openAddModal(idx)} className="text-[#164475] hover:underline flex items-center gap-1">
+                        <Edit2 className="w-3 h-3" /> Edit
+                      </button>
+                      {!addr.isDefault && (
+                        <button onClick={() => setDefault(idx)} className="text-gray-500 hover:text-[#164475] hover:underline">
+                          Set as Default
+                        </button>
+                      )}
+                      <button onClick={() => deleteAddress(idx)} className="text-red-400 hover:text-red-600 hover:underline ml-auto flex items-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add New Card */}
+                <button
+                  onClick={() => openAddModal()}
+                  className="p-6 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center text-gray-400 hover:border-[#164475] hover:text-[#164475] transition-all min-h-[180px] bg-white group"
+                >
+                  <Plus className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="font-extrabold text-xs uppercase tracking-wider">Add New Address</span>
+                </button>
+              </div>
+            )}
+
+            {/* Add/Edit Address Modal */}
+            {addressModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddressModalOpen(false)} />
+                <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg z-10 overflow-hidden">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                    <div>
+                      <h3 className="text-lg font-black text-[#0a1b2d]">{editingAddressIdx !== null ? 'Edit Address' : 'Add New Address'}</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Fill in your delivery details</p>
+                    </div>
+                    <button onClick={() => setAddressModalOpen(false)} className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center hover:bg-gray-100 transition-colors">
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+
+                  {/* Modal Body */}
+                  <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    {/* Label */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Address Label</label>
+                      <div className="flex gap-2">
+                        {['Home', 'Office', 'Other'].map(lbl => (
+                          <button
+                            key={lbl}
+                            onClick={() => setAddressForm(f => ({ ...f, label: lbl }))}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                              addressForm.label === lbl
+                                ? 'border-[#164475] bg-[#164475] text-white'
+                                : 'border-gray-200 text-gray-500 hover:border-[#164475] hover:text-[#164475]'
+                            }`}
+                          >{lbl}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Full Name *</label>
+                      <input
+                        type="text"
+                        value={addressForm.fullName}
+                        onChange={e => setAddressForm(f => ({ ...f, fullName: e.target.value }))}
+                        placeholder="Muhammad Ali"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all"
+                      />
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={addressForm.phone}
+                        onChange={e => setAddressForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="+92 300 0000000"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all"
+                      />
+                    </div>
+
+                    {/* Street */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Street Address *</label>
+                      <input
+                        type="text"
+                        value={addressForm.street}
+                        onChange={e => setAddressForm(f => ({ ...f, street: e.target.value }))}
+                        placeholder="House 12A, Street 4, DHA Phase 6"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all"
+                      />
+                    </div>
+
+                    {/* City & Postal */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">City *</label>
+                        <input
+                          type="text"
+                          value={addressForm.city}
+                          onChange={e => setAddressForm(f => ({ ...f, city: e.target.value }))}
+                          placeholder="Karachi"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Postal Code</label>
+                        <input
+                          type="text"
+                          value={addressForm.postalCode}
+                          onChange={e => setAddressForm(f => ({ ...f, postalCode: e.target.value }))}
+                          placeholder="75500"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Country */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Country</label>
+                      <select
+                        value={addressForm.country}
+                        onChange={e => setAddressForm(f => ({ ...f, country: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#164475]/30 focus:border-[#164475] outline-none text-sm font-medium text-[#0a1b2d] transition-all bg-white"
+                      >
+                        <option>Pakistan</option>
+                        <option>United Arab Emirates</option>
+                        <option>Saudi Arabia</option>
+                        <option>United Kingdom</option>
+                        <option>United States</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="p-6 border-t border-gray-100 flex gap-3">
+                    <button
+                      onClick={() => setAddressModalOpen(false)}
+                      className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveAddress}
+                      disabled={!addressForm.fullName || !addressForm.street || !addressForm.city}
+                      className="flex-1 py-3 rounded-xl bg-[#164475] hover:bg-[#0a1b2d] text-white font-bold text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-4 h-4" />
+                      {editingAddressIdx !== null ? 'Save Changes' : 'Add Address'}
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <button className="p-6 border-2 border-dashed border-gray-250 rounded-3xl flex flex-col items-center justify-center text-[#64748b] hover:border-[#164475] hover:text-[#164475] transition-all min-h-[200px] bg-white group">
-                <span className="text-3xl mb-1 group-hover:scale-110 transition-transform">+</span>
-                <span className="font-extrabold text-xs uppercase tracking-wider">Add New Address</span>
-              </button>
-
-            </div>
+            )}
           </div>
         );
+      }
       case 'notifications':
         return (
           <div className="space-y-6 animate-fade-in-up">
@@ -458,17 +1158,36 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
           {/* Side navigation panel */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-3xl border border-gray-150 overflow-hidden sticky top-32 shadow-sm">
+
+              {/* Profile Preview in Sidebar */}
+              <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                {user?.profilePicture ? (
+                  <img src={user.profilePicture} alt={user.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#164475] to-[#0a1b2d] flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                    {getUserInitials()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-black text-[#0a1b2d] text-xs truncate">{user?.name}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+                </div>
+              </div>
+
               <nav className="flex flex-col">
                 {[
                   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'profile', label: 'My Profile', icon: User },
                   { id: 'orders', label: 'Order History', icon: Package },
-                  { id: 'wishlist', label: 'My Wishlist', icon: Heart },
+                  { id: 'cart', label: 'My Cart', icon: ShoppingCart },
                   { id: 'addresses', label: 'Address Book', icon: MapPin },
                   { id: 'notifications', label: 'Notifications', icon: Bell }
                 ].map(item => {
                   const Icon = item.icon;
                   const isNotification = item.id === 'notifications';
+                  const isCart = item.id === 'cart';
                   const unreadCount = notifications.filter(n => !n.read).length;
+                  const cartCount = cart.reduce((t, i) => t + i.qty, 0);
                   return (
                     <button 
                       key={item.id}
@@ -482,11 +1201,15 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
                       <Icon className="w-4.5 h-4.5 flex-shrink-0" />
                       <span className="flex-1">{item.label}</span>
                       {isNotification && unreadCount > 0 && (
-                        <span className="bg-[#164475] text-[#03152a] text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{unreadCount}</span>
+                        <span className="bg-[#164475] text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{unreadCount}</span>
+                      )}
+                      {isCart && cartCount > 0 && (
+                        <span className="bg-green-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>
                       )}
                     </button>
                   );
                 })}
+
                 <button 
                   onClick={handleLogout}
                   className="px-6 py-4.5 text-left font-bold text-xs uppercase tracking-wider flex items-center gap-3 text-red-500 hover:bg-red-50 transition-colors border-l-4 border-transparent mt-4 border-t border-gray-100"
@@ -582,7 +1305,7 @@ export default function AccountPage({ handleAddToCart, formatPrice }: AccountPag
                   </p>
                   {selectedOrder.shippingAddress?.phone && (
                     <p className="flex items-center gap-2 text-xs">
-                      <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       Ph: {selectedOrder.shippingAddress.phone}
                     </p>
                   )}

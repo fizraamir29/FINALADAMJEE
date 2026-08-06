@@ -38,7 +38,7 @@ const orderSchema = new mongoose.Schema({
     default: 'pending',
   },
   subtotal: { type: Number, required: true },
-  shippingCost: { type: Number, default: 15 },
+  shippingCost: { type: Number, default: 4170 },
   discount: { type: Number, default: 0 },
   total: { type: Number, required: true },
   notes: { type: String, default: '' },

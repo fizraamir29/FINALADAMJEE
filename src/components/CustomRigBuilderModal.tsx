@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect } from "react";
 import { X, Check, Cpu, HardDrive, MonitorPlay, Zap, Download, ShoppingCart, ChevronRight } from "lucide-react";
 import { Product, PCComponent } from "../types";

@@ -1,11 +1,12 @@
+'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect } from "react";
 
 import { useSEO } from "../hooks/useSEO";
-import { 
-  PROCESSORS, GPUS, MOTHERBOARDS, MEMORIES, STORAGES, PSUS, COOLS, CASES, 
-  ADD_ON_COMPONENTS, BUNDLE_PRODUCTS 
+import {
+  PROCESSORS, GPUS, MOTHERBOARDS, MEMORIES, STORAGES, PSUS, COOLS, CASES,
+  ADD_ON_COMPONENTS
 } from "../data";
 import { Product, PCComponent } from "../types";
 import { Check, Download, ShoppingCart, Headphones, Truck, Users, ShieldCheck, ChevronRight } from "lucide-react";
@@ -35,6 +36,23 @@ export default function BuildYourPC({ handleAddToCart, formatPrice }: BuildYourP
 
   // State for Add-ons
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+
+  // Bundle deals come from the live catalogue (products tagged "Bundle", with a
+  // fallback to the newest published products) — never from a hardcoded list.
+  const [bundleProducts, setBundleProducts] = useState<Product[]>([]);
+  useEffect(() => {
+    fetch('/api/products?limit=100')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.products)) {
+          const tagged = data.products.filter(
+            (p: any) => (p.tag || '').toLowerCase() === 'bundle'
+          );
+          setBundleProducts((tagged.length > 0 ? tagged : data.products).slice(0, 4));
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   // Calculate totals
   const componentsList = [selectedCpu, selectedGpu, selectedMob, selectedRam, selectedSsd, selectedPsu, selectedCol, selectedCas].filter(Boolean) as PCComponent[];
@@ -73,7 +91,8 @@ export default function BuildYourPC({ handleAddToCart, formatPrice }: BuildYourP
   };
 
   const handleAddBundleToCart = () => {
-    BUNDLE_PRODUCTS.forEach(product => {
+    if (bundleProducts.length === 0) return;
+    bundleProducts.forEach(product => {
         handleAddToCart(product, 1);
     });
     router.push("/cart");
@@ -367,8 +386,8 @@ export default function BuildYourPC({ handleAddToCart, formatPrice }: BuildYourP
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            {BUNDLE_PRODUCTS.slice(0, 4).map((product, idx) => (
-              <div key={product.id} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-2 reveal-up flex flex-col" style={{ animationDelay: `${idx * 100}ms` }}>
+            {bundleProducts.slice(0, 4).map((product: Product, idx: number) => (
+              <div key={product.id || (product as any)._id} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-2 reveal-up flex flex-col" style={{ animationDelay: `${idx * 100}ms` }}>
                 <div className="aspect-square bg-[#f8fafc] rounded-2xl mb-6 flex items-center justify-center p-4">
                   <img src={product.image} alt={product.name} className="w-full h-full object-contain mix-blend-multiply" />
                 </div>
@@ -390,7 +409,7 @@ export default function BuildYourPC({ handleAddToCart, formatPrice }: BuildYourP
         <div className="mt-24 pt-16 border-t border-gray-200 grid grid-cols-2 lg:grid-cols-4 gap-8">
           {[
             { icon: <Headphones className="w-8 h-8" />, title: "Customer Service", desc: "24/7 Expert Support" },
-            { icon: <Truck className="w-8 h-8" />, title: "Fast Free Shipping", desc: "On orders over $500" },
+            { icon: <Truck className="w-8 h-8" />, title: "Fast Free Shipping", desc: "On orders over PKR 25,000" },
             { icon: <Users className="w-8 h-8" />, title: "Refer a Friend", desc: "Get 15% off your next rig" },
             { icon: <ShieldCheck className="w-8 h-8" />, title: "Secure Payment", desc: "100% safe checkout" }
           ].map((badge, idx) => (

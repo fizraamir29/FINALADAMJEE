@@ -5,8 +5,10 @@ import { useParams } from 'next/navigation';
 import React, { useState, useEffect } from "react";
 
 import { Product } from "../types";
-import { getProducts, toggleWishlist, isInWishlist, INITIAL_PRODUCTS } from "../utils/storage";
-import { ALL_PRODUCTS } from "../data";
+import { toggleWishlist, isInWishlist, getCategoryFallbackImage } from "../utils/storage";
+import Testimonials from "../components/Testimonials";
+import ProductReviews from "../components/ProductReviews";
+import ProductCard from "../components/ProductCard";
 import {
   Star, Heart, ChevronRight, ChevronLeft, Play,
   Plus, Minus, CheckCircle, Eye, ChevronDown
@@ -476,32 +478,41 @@ function getDynamicContent(product: Product, type: ProductType): DynamicContent 
       };
 
     default:
+      const bullets = (product.specBullets && product.specBullets.length > 0)
+        ? product.specBullets
+        : [
+            `Model Code: ${product.code || 'SKU-ADAMJEE'}`,
+            `Category: ${product.category || 'Gaming Hardware'}`,
+            `Build Quality: Premium Grade Materials`,
+            `Compatibility: Universal Plug-and-Play (Windows/macOS)`,
+            `Feature: Low Latency High Response Rate`,
+            `Warranty: 1 Year Adamjee Computers Official Warranty`
+          ];
+
       return {
-        specBullets: [
-          `Model: ${product.code}`,
-          `Category: ${product.category || 'Premium Gaming Hardware'}`,
-          'Color: Matte Black / RGB',
-          'Weight: 2.5 kg',
-          'Compatibility: Universal',
-          '1 Year Official Warranty',
-        ],
-        feature1Title: 'Premium Build Quality',
-        feature1Sub: 'Engineered for Enthusiasts',
-        feature1Desc: `The ${product.name} is crafted using premium-grade components and rigorous quality control. Designed for gamers, creators, and professionals who demand absolute reliability in their setup.`,
-        feature1Desc2: 'Backed by Adamjee Computers — Pakistan\'s trusted source for genuine gaming and PC hardware since day one.',
-        feature2Title: 'Universal Compatibility',
-        feature2Sub: 'Works With Your Setup',
-        feature2Desc: 'Plug-and-play setup on Windows 10/11 with no additional drivers required. Compatible with all major gaming platforms and professional workstation configurations.',
-        feature2Desc2: 'Full 1-year official warranty with Adamjee Computers support. 7-day returns for peace of mind with every purchase.',
-        feature2Img: product.image,
-        accordionItems: [
+        specBullets: bullets,
+        feature1Title: product.feature1Title || `High Performance ${product.name}`,
+        feature1Sub: product.feature1Sub || 'Engineered for Enthusiasts',
+        feature1Desc: product.feature1Desc || `The ${product.name} is crafted using premium-grade components and rigorous quality control. Designed for gamers, creators, and professionals who demand absolute reliability in their setup.`,
+        feature1Desc2: product.feature1Desc2 || 'Backed by Adamjee Computers — Pakistan\'s trusted source for genuine gaming and PC hardware.',
+        feature2Title: product.feature2Title || 'Universal Compatibility & Ergonomics',
+        feature2Sub: product.feature2Sub || 'Works With Your Setup',
+        feature2Desc: product.feature2Desc || 'Plug-and-play setup with no additional drivers required. Compatible with all major gaming platforms and professional workstation configurations.',
+        feature2Desc2: product.feature2Desc2 || 'Full 1-year official warranty with Adamjee Computers support. 7-day returns for peace of mind.',
+        feature2Img: product.feature2Img || product.image,
+        feature3Title: product.feature3Title || 'Reliability & Durability',
+        feature3Sub: product.feature3Sub || 'Built to Last',
+        feature3Desc: product.feature3Desc || `Tested under extreme workloads to guarantee peak stability and long-lasting operation.`,
+        feature3Desc2: product.feature3Desc2 || 'Official original product distributed in Pakistan.',
+        feature3Img: product.feature3Img || product.image,
+        accordionItems: product.accordionItems || [
           { title: 'Key Features', content: `Premium ${product.category || 'gaming'} hardware built for peak performance. ${product.name} delivers exceptional reliability for every use case.` },
-          { title: 'Build & Design', content: 'Premium materials with matte black finish. Ergonomic design built for extended use. Compact form factor fits any setup or workspace.' },
+          { title: 'Build & Design', content: 'Premium materials with ergonomic design. Built for extended daily use.' },
           { title: 'Package Included', content: '1× Main Unit, 1× Power/Data Cable, 1× User Manual, 1× Warranty Card.' },
-          { title: 'Compatibility', content: 'Compatible with Windows 10/11, macOS 12+, Linux. Plug-and-play — no drivers required. Works with all major gaming platforms.' },
+          { title: 'Compatibility', content: 'Compatible with Windows 10/11, macOS 12+, Linux. Plug-and-play setup.' },
         ],
-        colorLabel: 'Color',
-        colors: ['Black', 'White', 'Silver'],
+        colorLabel: product.colorLabel || 'Color',
+        colors: (product.colors && product.colors.length > 0) ? product.colors : ['Black', 'White', 'Silver'],
       };
   }
 }
@@ -522,15 +533,141 @@ function Stars({ rating }: { rating: number }) {
 ══════════════════════════════════════════════════════════════════ */
 export default function ProductListingPage({ handleAddToCart, formatPrice }: ProductListingPageProps) {
   const { id } = useParams() as { id: string };
-  const [productsList, setProductsList] = useState<Product[]>(() => INITIAL_PRODUCTS);
-  useEffect(() => { setProductsList(getProducts()); }, []);
+  const [mounted, setMounted] = React.useState(false);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [fetchedProduct, setFetchedProduct] = useState<Product | null>(null);
+  const [productLoading, setProductLoading] = useState(true);
+  const [mainImage, setMainImage] = useState(0);
+  const [thumbStart, setThumbStart] = useState(0);
+  const [isLiked, setIsLiked] = useState(false);
+  const [addedPulse, setAddedPulse] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedColor, setSelectedColor] = useState(0);
+  const [engraving, setEngraving] = useState(false);
+  const [relatedIndex, setRelatedIndex] = useState(0);
+  const [openAccordion, setOpenAccordion] = useState<number | null>(0);
+  const [hoveredRelated, setHoveredRelated] = useState<string | null>(null);
+  const [selectedRam, setSelectedRam] = useState(0);
+  const [selectedStorage, setSelectedStorage] = useState(0);
 
-  const product = productsList.find(p => p.id === id) || productsList[0];
-  const images = [product.image, ...(product.additionalImages || [])];
+  // Set mounted after hydration to avoid SSR mismatch
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    fetch('/api/products?limit=100')
+      .then(res => {
+        if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null;
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.success && Array.isArray(data.products)) {
+          setProductsList(data.products);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const matchFn = (p: Product) => {
+      if (!p || !id) return false;
+      const target = String(id).toLowerCase().trim();
+      const decodedTarget = decodeURIComponent(target);
+      return (
+        String(p.id || '').toLowerCase().trim() === target ||
+        String(p._id || '').toLowerCase().trim() === target ||
+        String(p.slug || '').toLowerCase().trim() === target ||
+        String(p.code || '').toLowerCase().trim() === target ||
+        String(p.id || '').toLowerCase().trim() === decodedTarget ||
+        String(p._id || '').toLowerCase().trim() === decodedTarget ||
+        String(p.slug || '').toLowerCase().trim() === decodedTarget ||
+        String(p.code || '').toLowerCase().trim() === decodedTarget
+      );
+    };
+
+    if (id && !productsList.some(matchFn)) {
+      fetch(`/api/products/${encodeURIComponent(id)}`)
+        .then(res => {
+          if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null;
+          return res.json();
+        })
+        .then(data => {
+          if (data && data.success && data.product) {
+            setFetchedProduct(data.product);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setProductLoading(false));
+    } else {
+      setProductLoading(false);
+    }
+  }, [id, productsList]);
+
+  const matchProduct = (p: Product) => {
+    if (!p || !id) return false;
+    const target = String(id).toLowerCase().trim();
+    const decodedTarget = decodeURIComponent(target);
+    return (
+      String(p.id || '').toLowerCase().trim() === target ||
+      String(p._id || '').toLowerCase().trim() === target ||
+      String(p.slug || '').toLowerCase().trim() === target ||
+      String(p.code || '').toLowerCase().trim() === target ||
+      String(p.id || '').toLowerCase().trim() === decodedTarget ||
+      String(p._id || '').toLowerCase().trim() === decodedTarget ||
+      String(p.slug || '').toLowerCase().trim() === decodedTarget ||
+      String(p.code || '').toLowerCase().trim() === decodedTarget
+    );
+  };
+
+  const product = fetchedProduct
+    || productsList.find(matchProduct)
+    || (!id ? productsList[0] : null);
+
+  useEffect(() => {
+    if (product) {
+      setMainImage(0);
+      setThumbStart(0);
+      setSelectedColor(0);
+      setRelatedIndex(0);
+      setOpenAccordion(0);
+      setIsLiked(isInWishlist(product.id || product._id || ''));
+    }
+  }, [product?.id, product?._id]);
+
+  /* Scroll reveal */
+  useEffect(() => {
+    if (!product) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('is-revealed'); }),
+      { threshold: 0.08 }
+    );
+    document.querySelectorAll('.pdp-up').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [product?.id, product?._id]);
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-[#0d233a] flex flex-col items-center justify-center p-8 text-white font-sans">
+        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold tracking-wide text-white/80">Loading Product Details...</p>
+      </div>
+    );
+  }
+
+
+  const rawImages = (product.images && product.images.length > 0)
+    ? product.images
+    : [product.image, ...(product.additionalImages || [])];
+  const images = Array.from(new Set(rawImages.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)));
+  if (images.length === 0 && product.image) {
+    images.push(product.image);
+  }
 
   /* Related: same category first, then others */
-  const relatedProducts = INITIAL_PRODUCTS
-    .filter(p => p.id !== product.id)
+  const allAvailableProds = Array.from(new Map(productsList.map(p => [p.id || p._id || p.slug, p])).values());
+  const relatedProducts = allAvailableProds
+    .filter(p => (p.id !== product.id && p._id !== product._id))
     .sort((a, b) => {
       const aCat = a.category === product.category ? 0 : 1;
       const bCat = b.category === product.category ? 0 : 1;
@@ -539,52 +676,47 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
     .slice(0, 6);
 
   /* Bundle: different category products */
-  const bundleProducts = ALL_PRODUCTS
-    .filter(p => p.id !== product.id && p.category !== product.category)
+  const bundleProducts = allAvailableProds
+    .filter(p => (p.id !== product.id && p._id !== product._id) && p.category !== product.category)
     .slice(0, 2);
 
-  /* ── State ── */
-  const [mainImage, setMainImage] = useState(0);
-  const [thumbStart, setThumbStart] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
-  const [addedPulse, setAddedPulse] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const [selectedColor, setSelectedColor] = useState(0);
-  const [engraving, setEngraving] = useState(false);
-  const [relatedIndex, setRelatedIndex] = useState(0);
-  const [openAccordion, setOpenAccordion] = useState<number | null>(0);
-  const [hoveredRelated, setHoveredRelated] = useState<string | null>(null);
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 3000);
+  };
 
   /* Variations */
   const isAccessory = ["Headphones", "Earphones", "Speakers", "Accessories"].includes(product.category || "");
-  const [selectedRam, setSelectedRam] = useState(0);
-  const [selectedStorage, setSelectedStorage] = useState(0);
   const ramOptions = [{ label: '16GB', priceMod: 0 }, { label: '32GB', priceMod: 50 }, { label: '64GB', priceMod: 150 }];
   const storageOptions = [{ label: '1TB SSD', priceMod: 0 }, { label: '2TB SSD', priceMod: 100 }];
   const finalPrice = isAccessory ? product.price : product.price + ramOptions[selectedRam].priceMod + storageOptions[selectedStorage].priceMod;
 
   /* Dynamic content */
   const type = detectType(product);
-  const content = getDynamicContent(product, type);
-
-  useEffect(() => {
-    setMainImage(0);
-    setThumbStart(0);
-    setSelectedColor(0);
-    setRelatedIndex(0);
-    setOpenAccordion(0);
-    setIsLiked(isInWishlist(product.id || product._id || ''));
-  }, [product.id]);
-
-  /* Scroll reveal */
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('is-revealed'); }),
-      { threshold: 0.08 }
-    );
-    document.querySelectorAll('.pdp-up').forEach(el => obs.observe(el));
-    return () => obs.disconnect();
-  }, [product.id]);
+  const fallbackContent = getDynamicContent(product, type);
+  const content = {
+    specBullets: product.specBullets && product.specBullets.length > 0 ? product.specBullets : fallbackContent.specBullets,
+    feature1Title: product.feature1Title || fallbackContent.feature1Title,
+    feature1Sub: product.feature1Sub || fallbackContent.feature1Sub,
+    feature1Desc: product.feature1Desc || fallbackContent.feature1Desc,
+    feature1Desc2: product.feature1Desc2 || fallbackContent.feature1Desc2,
+    feature1Img: product.feature1Img || fallbackContent.feature1Img,
+    feature2Title: product.feature2Title || fallbackContent.feature2Title,
+    feature2Sub: product.feature2Sub || fallbackContent.feature2Sub,
+    feature2Desc: product.feature2Desc || fallbackContent.feature2Desc,
+    feature2Desc2: product.feature2Desc2 || fallbackContent.feature2Desc2,
+    feature2Img: product.feature2Img || fallbackContent.feature2Img,
+    feature3Title: product.feature3Title || fallbackContent.feature3Title,
+    feature3Sub: product.feature3Sub || fallbackContent.feature3Sub,
+    feature3Desc: product.feature3Desc || fallbackContent.feature3Desc,
+    feature3Desc2: product.feature3Desc2 || fallbackContent.feature3Desc2,
+    feature3Img: product.feature3Img || fallbackContent.feature3Img,
+    accordionItems: product.accordionItems && product.accordionItems.length > 0 ? product.accordionItems : fallbackContent.accordionItems,
+    colors: product.colors && product.colors.length > 0 ? product.colors : fallbackContent.colors,
+    colorLabel: product.colorLabel || fallbackContent.colorLabel,
+    portsBannerImg: fallbackContent.portsBannerImg,
+  };
 
   const handleAdd = () => {
     for (let i = 0; i < quantity; i++) handleAddToCart({ ...product, price: finalPrice });
@@ -647,6 +779,9 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
                 src={images[mainImage] || product.image}
                 alt={product.name}
                 className="w-full h-full object-contain p-6 transition-transform duration-500 hover:scale-105"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = getCategoryFallbackImage(product.category, product.name);
+                }}
                 style={{ filter: 'drop-shadow(0 8px 32px rgba(124,179,216,0.15))' }}
               />
               <button
@@ -706,8 +841,30 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
               {product.description || `The ${product.name} is crafted for users who demand the best. Featuring premium build quality and exceptional performance, it elevates any gaming or workstation setup.`}
             </p>
 
-            <div className="text-lg font-bold text-[#7cb3d8] flex items-center gap-1">
-              🔥25% Off with Code 'HERO25'!
+            <div className="flex items-center gap-3 py-1">
+              {product.discountPercent ? (
+                <button
+                  type="button"
+                  onClick={() => handleCopyCode(`HERO${product.discountPercent}`)}
+                  className="group relative inline-flex items-center gap-2 bg-[#7cb3d8]/20 border border-[#7cb3d8]/40 hover:border-[#7cb3d8] px-4 py-2 rounded-xl text-sm font-extrabold text-[#7cb3d8] transition-all hover:scale-[1.02] cursor-pointer"
+                >
+                  <span>🔥 {product.discountPercent}% OFF (Use Code: HERO{product.discountPercent})</span>
+                  <span className="text-[10px] bg-[#7cb3d8] text-[#103256] px-2 py-0.5 rounded font-black uppercase">
+                    {copiedCode ? '✓ Copied!' : 'Copy Code'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleCopyCode('HERO25')}
+                  className="group relative inline-flex items-center gap-2 bg-[#7cb3d8]/20 border border-[#7cb3d8]/40 hover:border-[#7cb3d8] px-4 py-2 rounded-xl text-sm font-extrabold text-[#7cb3d8] transition-all hover:scale-[1.02] cursor-pointer"
+                >
+                  <span>🔥 25% Off (Use Code: HERO25)</span>
+                  <span className="text-[10px] bg-[#7cb3d8] text-[#103256] px-2 py-0.5 rounded font-black uppercase">
+                    {copiedCode ? '✓ Copied!' : 'Copy Code'}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Spec bullets */}
@@ -725,11 +882,11 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
             <div className="pt-6 mt-6 border-t border-white/10" />
 
             {/* Color and Quantity Grid */}
-            <div className="grid grid-cols-2 gap-8 items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
               {/* Color */}
               <div>
                 <h3 className="text-base font-light text-white mb-4">Color : {content.colors[selectedColor]}</h3>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {colorSwatches.length > 1 ? (
                     colorSwatches.map((img, i) => (
                       <button key={i} onClick={() => setSelectedColor(i)}
@@ -780,47 +937,43 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
               </button>
             </div>
 
-            {/* Payment icons */}
-            <div className="flex items-center gap-2 pt-2">
-              {['VISA', 'MC', 'AMEX', 'PayPal', 'Diners', 'Discover'].map((pay, i) => (
-                <div key={i} className="h-7 px-3 rounded text-[10px] font-bold text-[#103256] bg-white flex items-center justify-center tracking-wide">{pay}</div>
+            {/* Payment icons matching footer design */}
+            <div className="flex items-center gap-2 pt-2 flex-wrap">
+              <span className="text-[10px] text-white/60 font-semibold mr-1">Guaranteed Safe Checkout:</span>
+              {[
+                { name: 'VISA', bg: 'bg-white text-[#1a1a1a]', font: 'font-black tracking-widest' },
+                { name: 'MasterCard', bg: 'bg-[#0a1b2d] text-white border border-white/20', font: 'font-extrabold' },
+                { name: 'AMEX', bg: 'bg-[#0077a2] text-white', font: 'font-black' },
+                { name: 'PayPal', bg: 'bg-[#003087] text-white', font: 'font-extrabold' },
+                { name: 'Diners', bg: 'bg-[#004a97] text-white', font: 'font-bold' },
+                { name: 'Discover', bg: 'bg-[#f9a01b] text-[#1a1a1a]', font: 'font-bold' },
+              ].map((pay, i) => (
+                <div key={i} className={`h-6 px-2.5 rounded-md text-[10px] ${pay.font} ${pay.bg} flex items-center justify-center tracking-tight shadow-sm select-none`}>
+                  {pay.name}
+                </div>
               ))}
             </div>
 
             <div className="pt-6 mt-4 border-t border-white/10" />
 
-            {/* Bundle mini-cards */}
-            <div>
-              <p className="text-lg font-light text-[#7cb3d8] mb-4">Cart Adds Unlock 30% Off Bundles!</p>
-              <div className="grid grid-cols-2 gap-4">
-                {bundleProducts.map(bp => (
-                  <div key={bp.id} className="rounded-[20px] bg-white p-4 flex flex-col space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex gap-1 text-amber-400">
-                        <Star className="w-3 h-3 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-gray-700">{bp.rating.toFixed(1)}</span>
-                      </div>
-                      {bp.tag && (<span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase text-white ${bp.tag === 'Hot' ? 'bg-amber-500' : 'bg-[#103256]'}`}>{bp.tag}</span>)}
-                    </div>
-                    
-                    <div className="h-24 flex items-center justify-center">
-                      <img src={bp.image} alt={bp.name} className="max-h-full object-contain" />
-                    </div>
-                    
-                    <div>
-                      <span className="text-[9px] text-gray-400 block mb-1">{bp.code}</span>
-                      <h4 className="text-xs font-bold text-[#103256] line-clamp-1 mb-1">{bp.name}</h4>
-                      <div className="text-xs font-bold text-gray-500">{formatPrice(bp.price)}</div>
-                    </div>
-                    
-                    <button onClick={() => handleAddToCart(bp)}
-                      className="w-full py-2.5 rounded-full text-xs font-bold bg-[#103256] text-white hover:bg-[#0c2545] transition-colors mt-auto">
-                      Add to Bundle
-                    </button>
-                  </div>
-                ))}
+            {/* Bundle mini-cards — only render after client mount to avoid hydration mismatch */}
+            {mounted && (
+              <div>
+                <p className="text-lg font-light text-[#7cb3d8] mb-4">Cart Adds Unlock 30% Off Bundles!</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {bundleProducts.map((bp, idx) => (
+                    <ProductCard
+                      key={bp._id || bp.id || bp.slug || `bundle-${idx}`}
+                      product={bp}
+                      formatPrice={(amt) => formatPrice(amt)}
+                      showBundleButton={true}
+                      buttonLabel="Add to Bundle"
+                      onAddToCart={handleAddToCart}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
@@ -873,7 +1026,7 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center pdp-up d1">
           <div className="rounded-2xl border border-white/10 flex items-center justify-center p-4 overflow-hidden" style={{ minHeight: 250, background: 'rgba(255,255,255,0.04)' }}>
             <img src={content.feature2Img} alt={content.feature2Title} className="w-full h-full object-cover rounded-xl"
-              onError={(e) => { (e.target as HTMLImageElement).src = product.image; }}
+              onError={(e) => { (e.target as HTMLImageElement).src = getCategoryFallbackImage(product.category, product.name); }}
               style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))' }} />
           </div>
           <div className="space-y-4">
@@ -897,7 +1050,7 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
             </div>
             <div className="rounded-2xl border border-white/10 flex items-center justify-center p-4 md:order-2 order-1 overflow-hidden" style={{ minHeight: 250, background: 'rgba(255,255,255,0.04)' }}>
               <img src={content.feature3Img} alt={content.feature3Title} className="w-full h-full object-cover rounded-xl"
-                onError={(e) => { (e.target as HTMLImageElement).src = product.image; }}
+                onError={(e) => { (e.target as HTMLImageElement).src = getCategoryFallbackImage(product.category, product.name); }}
                 style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))' }} />
             </div>
           </div>
@@ -931,83 +1084,9 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
       </section>
 
       {/* ══════════════════════════════════════════════════
-          TESTIMONIALS — white bg, exact match
+          WHY CHOOSE US / TESTIMONIALS — matching homepage design
       ══════════════════════════════════════════════════ */}
-      <section className="px-4 md:px-10 py-16 bg-white relative z-10">
-        <div className="text-center space-y-2 mb-12 max-w-2xl mx-auto pdp-up">
-          <span className="text-xs font-extrabold tracking-widest uppercase text-[#103256]">WHY CHOOSE US</span>
-          <h2 className="text-3xl md:text-4xl font-black text-[#0a1b2d] tracking-tight leading-tight">
-            Your Trusted Destination For<br /><span className="font-black">Gaming &amp; PC Hardware</span>
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-7xl mx-auto pdp-up d1">
-          <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="h-[200px] overflow-hidden"><img src="/images/testimonial_setup1.png" className="w-full h-full object-cover" alt="Setup" /></div>
-            <div className="p-6 flex flex-col flex-1 justify-between">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">&quot;Absolutely loved the custom PC build quality and cable management. The performance is smooth, and the team guided me perfectly throughout the process.&quot;</p>
-              <div className="flex items-center space-x-3 border-t border-gray-100 pt-4 mt-4">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=hamza&backgroundColor=b6e3f4" className="w-10 h-10 rounded-full border-2 border-gray-100" alt="Hamza" />
-                <div><h5 className="text-sm font-extrabold text-[#0a1b2d]">Hamza A.</h5><span className="text-[10px] text-[#103256] font-bold">Verified Buyer ✓</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative rounded-[24px] overflow-hidden bg-[#0a1b2d] min-h-[420px] flex items-center justify-center group cursor-pointer shadow-sm">
-            <img src="/images/testimonial_setup2.png" className="absolute inset-0 w-full h-full object-cover opacity-75 group-hover:opacity-90 group-hover:scale-105 transition-all duration-700" alt="Showcase" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none" />
-            <div className="relative z-10 flex flex-col items-center space-y-3 text-white">
-              <button className="w-16 h-16 rounded-full bg-white text-[#0a1b2d] flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300 border-none cursor-pointer"><Play className="w-6 h-6 fill-[#0a1b2d] ml-0.5" /></button>
-              <span className="text-[10px] uppercase font-black tracking-[0.2em]">Adamjee Setup Showcase</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="h-[200px] overflow-hidden"><img src="/images/testimonial_setup3.png" className="w-full h-full object-cover" alt="Setup" /></div>
-            <div className="p-6 flex flex-col flex-1 justify-between">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">&quot;Ordered my gaming setup from Adamjee Computers and the experience was amazing. Genuine products, fast delivery, and excellent customer support.&quot;</p>
-              <div className="flex items-center space-x-3 border-t border-gray-100 pt-4 mt-4">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=ali&backgroundColor=c0aede" className="w-10 h-10 rounded-full border-2 border-gray-100" alt="Ali" />
-                <div><h5 className="text-sm font-extrabold text-[#0a1b2d]">Ali R.</h5><span className="text-[10px] text-[#103256] font-bold">Verified Buyer ✓</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative rounded-[24px] overflow-hidden bg-[#0a1b2d] min-h-[300px] flex items-center justify-center group cursor-pointer shadow-sm">
-            <img src="/images/testimonial_setup4.png" className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-700" alt="Studio" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
-            <div className="relative z-10 flex flex-col items-center space-y-3 text-white">
-              <button className="w-14 h-14 rounded-full bg-white text-[#0a1b2d] flex items-center justify-center shadow-2xl group-hover:scale-110 transition duration-300 border-none cursor-pointer"><Play className="w-5 h-5 fill-[#0a1b2d] ml-0.5" /></button>
-              <span className="text-[10px] uppercase font-black tracking-[0.2em]">Futuristic Studio</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-6 flex flex-col justify-between min-h-[300px]">
-            <div className="space-y-4">
-              <div className="flex space-x-1 text-amber-400">{[1,2,3,4,5].map(x => <Star key={x} className="w-4 h-4 fill-current" />)}</div>
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">&quot;Their upgrade recommendations helped me improve my FPS and streaming performance without overspending. Highly recommended for gamers.&quot;</p>
-            </div>
-            <div className="flex items-center space-x-3 border-t border-gray-100 pt-4">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=zeeshan&backgroundColor=ffd5dc" className="w-10 h-10 rounded-full border-2 border-gray-100" alt="Zeeshan" />
-              <div><h5 className="text-sm font-extrabold text-[#0a1b2d]">Zeeshan T.</h5><span className="text-[10px] text-[#103256] font-bold">Verified Buyer ✓</span></div>
-            </div>
-          </div>
-
-          <div className="relative rounded-[24px] overflow-hidden bg-[#0a1b2d] min-h-[300px] flex items-center justify-center group cursor-pointer shadow-sm">
-            <img src="/images/testimonial_setup5.png" className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-700" alt="Blue Room" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <button className="w-14 h-14 rounded-full bg-white text-[#0a1b2d] flex items-center justify-center shadow-2xl group-hover:scale-110 transition duration-300 border-none cursor-pointer"><Play className="w-5 h-5 fill-[#0a1b2d] ml-0.5" /></button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-center mt-12 pdp-up d2">
-          <button className="font-black tracking-wider px-12 py-4 rounded-full text-sm text-white shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 border-none cursor-pointer" style={{ background: DARK }}>
-            Submit Your Setup Now
-          </button>
-        </div>
-      </section>
+      <Testimonials />
 
       {/* ══════════════════════════════════════════════════
           RELATED PRODUCTS — light section
@@ -1032,40 +1111,21 @@ export default function ProductListingPage({ handleAddToCart, formatPrice }: Pro
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pdp-up d1">
-            {relatedProducts.slice(relatedIndex, relatedIndex + relatedVisible).map(rp => {
-              const rpImages = [rp.image, ...(rp.additionalImages || [])];
-              return (
-                <Link key={rp.id} href={`/product/${rp.id}`}>
-                  <div
-                    className={`bg-white rounded-2xl border-2 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${hoveredRelated === rp.id ? 'border-[#103256]' : 'border-gray-200'}`}
-                    onMouseEnter={() => setHoveredRelated(rp.id)}
-                    onMouseLeave={() => setHoveredRelated(null)}
-                  >
-                    <div className="relative bg-[#f8f9fa] aspect-square flex items-center justify-center overflow-hidden p-6">
-                      {rp.tag && (<span className={`absolute top-3 left-3 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wide z-10 ${rp.tag === 'Hot' ? 'bg-amber-400 text-black' : 'bg-[#103256] text-white'}`}>{rp.tag}</span>)}
-                      <span className="absolute top-3 right-3 bg-white px-2 py-1 rounded-full text-[11px] font-semibold text-[#103256] flex items-center gap-1 shadow-sm z-10">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{rp.rating.toFixed(1)}
-                      </span>
-                      <img src={rp.image} alt={rp.name} className="w-4/5 h-4/5 object-contain transition-transform duration-300 group-hover:scale-[1.06]" style={{ mixBlendMode: 'multiply' }} />
-                      {hoveredRelated === rp.id && (
-                        <div className="absolute inset-0 bg-[#103256]/10 flex items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg"><Eye className="w-5 h-5 text-[#103256]" /></div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="border-t border-gray-100" />
-                    <div className="p-4 space-y-1.5">
-                      <span className="text-[10px] text-gray-400 font-medium block">{rp.code}</span>
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="text-[14px] font-black text-[#0a1b2d] leading-tight truncate">{rp.name}</h4>
-                        <span className="text-[13px] font-bold text-gray-600 shrink-0">{formatPrice(rp.price)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {relatedProducts.slice(relatedIndex, relatedIndex + relatedVisible).map((rp, idx) => (
+              <ProductCard
+                key={rp._id || rp.id || rp.slug || `rel-${idx}`}
+                product={rp}
+                formatPrice={(amt) => formatPrice(amt)}
+                onAddToCart={handleAddToCart}
+              />
+            ))}
           </div>
+
+          {/* Customer Reviews */}
+          <ProductReviews
+            productId={product._id || product.id || id || product.code || product.slug || product.name}
+            productName={product.name}
+          />
 
           {/* Service strip */}
           <div className="mt-16 pt-12 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-0 pdp-up d2">

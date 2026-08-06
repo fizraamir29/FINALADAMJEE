@@ -1,7 +1,9 @@
+'use client';
 import Link from 'next/link';
 import React from "react";
 
 import { Product } from "../types";
+import { getProductImage } from "../utils/storage";
 import { Trash2, ShoppingCart, ArrowRight } from "lucide-react";
 
 interface CartPageProps {
@@ -12,7 +14,7 @@ interface CartPageProps {
 
 export default function CartPage({ cart, setCart, formatPrice }: CartPageProps) {
   const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.qty), 0);
-  const shipping = cart.length > 0 ? 15 : 0;
+  const shipping = cart.length > 0 ? 4170 : 0;
   const total = subtotal + shipping;
 
   return (
@@ -47,11 +49,11 @@ export default function CartPage({ cart, setCart, formatPrice }: CartPageProps) 
                 </div>
 
                 <div className="p-6 space-y-6">
-                  {cart.map(item => (
-                    <div key={item.product.id} className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center relative pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                  {cart.map((item, idx) => (
+                    <div key={item.product.id || (item.product as any)._id || idx} className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center relative pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                       <div className="col-span-1 sm:col-span-6 flex items-center gap-4">
-                        <Link href={`/product/${item.product.id}`} className="w-24 h-24 bg-gray-50 rounded-xl border border-gray-100 p-2 flex-shrink-0 flex items-center justify-center">
-                          <img src={item.product.image} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply" />
+                        <Link href={`/product/${item.product.id || (item.product as any)._id}`} className="w-24 h-24 bg-gray-50 rounded-xl border border-gray-100 p-2 flex-shrink-0 flex items-center justify-center">
+                          <img src={getProductImage(item.product)} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply" />
                         </Link>
                         <div>
                           <p className="text-[10px] font-bold text-[#164475] uppercase tracking-wider mb-1">{item.product.code}</p>
@@ -69,12 +71,12 @@ export default function CartPage({ cart, setCart, formatPrice }: CartPageProps) 
                       <div className="col-span-1 sm:col-span-2 flex justify-start sm:justify-center">
                         <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg h-10 w-24">
                           <button 
-                            onClick={() => setCart(p => p.map(i => i.product.id === item.product.id && i.qty > 1 ? { ...i, qty: i.qty - 1 } : i))}
+                            onClick={() => { const pid = item.product.id || (item.product as any)._id; setCart(p => p.map(i => (i.product.id || (i.product as any)._id) === pid && i.qty > 1 ? { ...i, qty: i.qty - 1 } : i)); }}
                             className="w-8 h-full flex items-center justify-center text-gray-500 hover:text-[#164475]"
                           >-</button>
                           <div className="flex-1 text-center font-bold text-sm text-[#0a1b2d]">{item.qty}</div>
                           <button 
-                            onClick={() => setCart(p => p.map(i => i.product.id === item.product.id ? { ...i, qty: i.qty + 1 } : i))}
+                            onClick={() => { const pid = item.product.id || (item.product as any)._id; setCart(p => p.map(i => (i.product.id || (i.product as any)._id) === pid ? { ...i, qty: i.qty + 1 } : i)); }}
                             className="w-8 h-full flex items-center justify-center text-gray-500 hover:text-[#164475]"
                           >+</button>
                         </div>
@@ -86,7 +88,7 @@ export default function CartPage({ cart, setCart, formatPrice }: CartPageProps) 
                           {formatPrice(item.product.price * item.qty)}
                         </div>
                         <button 
-                          onClick={() => setCart(prev => prev.filter(i => i.product.id !== item.product.id))}
+                          onClick={() => { const pid = item.product.id || (item.product as any)._id; setCart(prev => prev.filter(i => (i.product.id || (i.product as any)._id) !== pid)); }}
                           className="absolute top-0 right-0 sm:static sm:ml-4 text-gray-300 hover:text-[#0a1b2d] transition-colors bg-white border-none cursor-pointer"
                           aria-label="Remove item"
                         >

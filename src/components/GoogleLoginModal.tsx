@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import { X, ArrowLeft, Loader2, UserPlus } from 'lucide-react';
 

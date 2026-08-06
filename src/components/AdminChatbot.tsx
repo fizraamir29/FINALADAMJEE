@@ -117,16 +117,16 @@ export default function AdminChatbot() {
     <>
       {/* ─── FLOATING TRIGGER ─── */}
       {!isOpen && (
-        <div className="fixed bottom-6 left-6 z-[999]">
-          <div className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" />
+        <div className="fixed z-[999]" style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))', right: '16px' }}>
+          <div className="absolute inset-0 rounded-full bg-[#164475]/30 animate-ping" />
           <button
             id="admin-chatbot-trigger"
             onClick={() => setIsOpen(true)}
-            className="relative w-14 h-14 bg-gradient-to-br from-emerald-600 to-emerald-900 rounded-full flex items-center justify-center shadow-2xl hover:shadow-emerald-500/40 hover:scale-110 transition-all duration-300 outline-none"
+            className="relative w-14 h-14 bg-gradient-to-br from-[#164475] to-[#0a1b2d] rounded-full flex items-center justify-center shadow-2xl hover:shadow-[#164475]/40 hover:scale-110 transition-all duration-300 outline-none"
             aria-label="Open admin chat"
           >
             <Bot className="w-6 h-6 text-white" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-400 rounded-full border-2 border-white flex items-center justify-center">
               <span className="w-1.5 h-1.5 bg-white rounded-full" />
             </span>
           </button>
@@ -136,20 +136,27 @@ export default function AdminChatbot() {
       {/* ─── CHAT WINDOW ─── */}
       {isOpen && (
         <div
-          className="fixed bottom-6 left-6 z-[999] flex flex-col rounded-3xl shadow-2xl border border-emerald-900/30 bg-[#0f1f1a] overflow-hidden"
-          style={{ width: '360px', height: isMinimized ? '68px' : '560px', transition: 'height 0.3s cubic-bezier(0.4,0,0.2,1)' }}
+          className="fixed z-[999] flex flex-col rounded-3xl shadow-2xl border border-[#e2e8f0] bg-white overflow-hidden animate-zoom-in"
+          style={{ 
+            bottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+            right: '16px',
+            width: 'min(360px, calc(100vw - 32px))', 
+            height: isMinimized ? '68px' : 'min(560px, calc(100dvh - 100px))', 
+            maxHeight: 'calc(100dvh - 80px)',
+            transition: 'height 0.3s cubic-bezier(0.4,0,0.2,1)' 
+          }}
         >
           {/* Header */}
-          <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-900 to-emerald-700">
+          <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#0a1b2d] to-[#164475]">
             <div className="relative flex-shrink-0">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#164475] to-[#0a1b2d] flex items-center justify-center">
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-900" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-400 rounded-full border-2 border-[#0a1b2d]" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold text-sm leading-none">AdminBot</p>
-              <p className="text-emerald-300 text-xs mt-0.5 flex items-center gap-1">
+              <p className="text-[#a0bad6] text-xs mt-0.5 flex items-center gap-1">
                 <Sparkles className="w-2.5 h-2.5" /> Business Intelligence · Admin Only
               </p>
             </div>
@@ -170,14 +177,14 @@ export default function AdminChatbot() {
           {/* Messages */}
           {!isMinimized && (
             <>
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-[#0f1f1a] min-h-0 chat-scroll">
+              <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-[#f8fafc] min-h-0 chat-scroll">
                 {messages.map(msg => (
                   <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                     {/* Avatar */}
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
                       msg.role === 'bot'
-                        ? 'bg-gradient-to-br from-emerald-500 to-emerald-800'
-                        : 'bg-emerald-700'
+                        ? 'bg-gradient-to-br from-[#164475] to-[#0a1b2d]'
+                        : 'bg-[#0a1b2d]'
                     }`}>
                       {msg.role === 'bot'
                         ? <Bot className="w-3.5 h-3.5 text-white" />
@@ -188,8 +195,8 @@ export default function AdminChatbot() {
                     <div className={`flex flex-col gap-1.5 max-w-[78%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                       <div className={`px-3.5 py-2.5 rounded-2xl text-xs space-y-0.5 ${
                         msg.role === 'bot'
-                          ? 'bg-[#1a2e28] text-emerald-50 border border-emerald-900/50 rounded-tl-none shadow-sm'
-                          : 'bg-gradient-to-br from-emerald-600 to-emerald-800 text-white rounded-tr-none'
+                          ? 'bg-white text-[#0a1b2d] border border-[#e2e8f0] rounded-tl-none shadow-sm'
+                          : 'bg-gradient-to-br from-[#164475] to-[#0a1b2d] text-white rounded-tr-none'
                       }`}>
                         {msg.role === 'bot' ? formatText(msg.text) : <p>{msg.text}</p>}
                       </div>
@@ -201,7 +208,7 @@ export default function AdminChatbot() {
                             <button
                               key={qr}
                               onClick={() => sendMessage(qr)}
-                              className="border border-emerald-600/50 text-emerald-400 text-[10px] font-semibold px-2.5 py-1 rounded-full hover:bg-emerald-600 hover:text-white transition-colors"
+                              className="border border-[#164475] text-[#164475] text-[10px] font-semibold px-2.5 py-1 rounded-full hover:bg-[#164475] hover:text-white transition-colors"
                             >
                               {qr}
                             </button>
@@ -209,7 +216,7 @@ export default function AdminChatbot() {
                         </div>
                       )}
 
-                      <span className="text-[9px] text-emerald-700">
+                      <span className="text-[9px] text-[#94a3b8]">
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -219,15 +226,15 @@ export default function AdminChatbot() {
                 {/* Typing indicator */}
                 {isTyping && (
                   <div className="flex gap-2 items-center">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-800 flex items-center justify-center flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#164475] to-[#0a1b2d] flex items-center justify-center flex-shrink-0">
                       <Bot className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <div className="bg-[#1a2e28] border border-emerald-900/50 rounded-2xl rounded-tl-none px-3.5 py-2.5 shadow-sm">
+                    <div className="bg-white border border-[#e2e8f0] rounded-2xl rounded-tl-none px-3.5 py-2.5 shadow-sm">
                       <div className="flex items-center gap-1">
                         {[0, 150, 300].map(d => (
                           <div
                             key={d}
-                            className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                            className="w-1.5 h-1.5 bg-[#164475] rounded-full animate-bounce"
                             style={{ animationDelay: `${d}ms` }}
                           />
                         ))}
@@ -239,16 +246,16 @@ export default function AdminChatbot() {
               </div>
 
               {/* Footer */}
-              <div className="flex-shrink-0 bg-[#0d1a16] border-t border-emerald-900/40 p-3">
+              <div className="flex-shrink-0 bg-white border-t border-[#e2e8f0] p-3">
                 {/* Quick actions */}
                 <div className="grid grid-cols-4 gap-1.5 mb-2.5">
                   {QUICK_ACTIONS.map(({ icon: Icon, label, msg }) => (
                     <button
                       key={label}
                       onClick={() => sendMessage(msg)}
-                      className="flex flex-col items-center gap-1 bg-[#1a2e28] hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-semibold py-1.5 rounded-lg transition-colors"
+                      className="flex flex-col items-center gap-1 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#0a1b2d] text-[9px] font-semibold py-1.5 rounded-lg transition-colors"
                     >
-                      <Icon className="w-3 h-3" />
+                      <Icon className="w-3 h-3 text-[#164475]" />
                       {label}
                     </button>
                   ))}
@@ -257,7 +264,7 @@ export default function AdminChatbot() {
                 {/* Input */}
                 <form
                   onSubmit={e => { e.preventDefault(); sendMessage(input); }}
-                  className="flex items-center gap-2 bg-[#1a2e28] border border-emerald-900/50 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-emerald-500/30 focus-within:border-emerald-600 transition-all"
+                  className="flex items-center gap-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-[#164475]/30 focus-within:border-[#164475] transition-all"
                 >
                   <input
                     ref={inputRef}
@@ -265,12 +272,12 @@ export default function AdminChatbot() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Ask about your store..."
-                    className="flex-1 bg-transparent text-xs text-emerald-50 placeholder-emerald-700 outline-none font-medium"
+                    className="flex-1 bg-transparent text-xs text-[#0a1b2d] placeholder-[#94a3b8] outline-none font-medium"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isTyping}
-                    className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="w-7 h-7 rounded-lg bg-[#164475] hover:bg-[#0a1b2d] text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     {isTyping
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -279,8 +286,8 @@ export default function AdminChatbot() {
                   </button>
                 </form>
 
-                <p className="text-center text-[9px] text-emerald-800 mt-1.5 font-medium">
-                  ⚡ AdminBot · <strong className="text-emerald-700">Restricted to Admin</strong>
+                <p className="text-center text-[9px] text-[#94a3b8] mt-1.5 font-medium">
+                  ⚡ AdminBot · <strong className="text-[#164475]">Restricted to Admin</strong>
                 </p>
               </div>
             </>

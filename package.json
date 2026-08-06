@@ -1,34 +1,10 @@
 {
-  "name": "adamjee-next",
-  "version": "0.1.0",
+  "name": "adamjee-computers",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@google/genai": "^2.8.0",
-    "bcryptjs": "^3.0.3",
-    "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^0.546.0",
-    "mongoose": "^9.7.0",
-    "motion": "^12.40.0",
-    "next": "16.2.9",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "dev": "npm --prefix adamjee-next run dev",
+    "build": "cd adamjee-next && npm install && npm run build",
+    "start": "npm --prefix adamjee-next run start"
   }
 }

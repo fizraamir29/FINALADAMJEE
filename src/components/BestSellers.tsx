@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { Product } from "../types";
+import { getProducts } from "../utils/storage";
+import ProductCard from "./ProductCard";
 
 interface BestSellersProps {
   bundle: Product[];
@@ -21,23 +23,58 @@ export default function BestSellers({
 }: BestSellersProps) {
   
   const handleApplyBundleDiscount = (subtotal: number) => {
-    return bundle.length >= 3 ? subtotal * 0.7 : subtotal;
+    return bundle.length >= 2 ? subtotal * 0.7 : subtotal;
   };
 
   const [bundleProducts, setBundleProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/products?featured=true&limit=4')
-      .then(res => res.json())
+  const isBundleTag = (t?: string) => {
+    const tag = (t || '').trim().toLowerCase();
+    return tag === 'bundle' || tag === 'best seller' || tag === 'bestseller' || tag === 'add to bundle' || tag === 'hot' || tag === 'new';
+  };
+
+  const loadBundleProducts = React.useCallback(() => {
+    // 1. Instant synchronous load from storage/memory
+    const stored = getProducts();
+    if (stored && stored.length > 0) {
+      const initialBundles = stored.filter((p: any) => isBundleTag(p.tag));
+      const listToUse = initialBundles.length > 0 ? initialBundles : stored;
+      setBundleProducts(listToUse.slice(0, 4));
+      setLoading(false);
+    }
+
+    // 2. Fetch live data from API
+    fetch('/api/products?all=true')
+      .then(res => {
+        if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null;
+        return res.json();
+      })
       .then(data => {
-        if(data.success && data.products) {
-          setBundleProducts(data.products.slice(0, 4));
+        if (data && data.success && Array.isArray(data.products) && data.products.length > 0) {
+          const taggedBundles = data.products.filter((p: any) => isBundleTag(p.tag));
+          const finalBundles = taggedBundles.length > 0 ? taggedBundles : data.products;
+          setBundleProducts(finalBundles.slice(0, 4));
         }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadBundleProducts();
+
+    const handleUpdate = () => loadBundleProducts();
+    window.addEventListener('adamjee_new_product', handleUpdate);
+    window.addEventListener('adamjee_products_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('adamjee_new_product', handleUpdate);
+      window.removeEventListener('adamjee_products_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [loadBundleProducts]);
 
   const bundleTotal = bundle.reduce((a, b) => a + b.price, 0);
   const discountedTotal = handleApplyBundleDiscount(bundleTotal);
@@ -48,173 +85,89 @@ export default function BestSellers({
 
         {/* Section Header spanning full width */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start pb-8 text-left">
-          <div className="lg:col-span-2 space-y-2">
-            <span className="text-[11px] font-bold tracking-[0.1em] uppercase text-[#164475] block">
-              BEST SELLERS / TRENDING NOW
+          <div className="lg:col-span-2">
+            <span className="text-[#164475] text-xs uppercase font-extrabold tracking-widest px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+              Bundle & Save Up to 30%
             </span>
-            <h2 className="text-[38px] md:text-[42px] leading-tight tracking-tight text-black">
-              Pakistan's Most Popular<br />
-              <span className="font-black">Gaming &amp; PC Products</span>
+            <h2 className="text-3xl md:text-5xl font-black text-[#0a1b2d] mt-3 tracking-tight">
+              Best Sellers <span className="text-[#164475]">& Bundle Deals</span>
             </h2>
-          </div>
-          <div className="lg:pl-4 pt-1">
-            <p className="text-gray-500 text-[13px] leading-relaxed">
-              Explore our top-selling products trusted by gamers and PC enthusiasts nationwide. From powerful GPUs to gaming laptops and custom-built PCs
+            <p className="text-gray-500 text-sm md:text-base mt-2 max-w-xl">
+              Combine top-tier gaming peripherals and components. Select 2 or more items to unlock an automatic <span className="font-bold text-[#164475]">30% bundle discount</span>!
             </p>
           </div>
+
+          {/* Bundle Cart Sticky Widget */}
+          <div className="bg-[#0a1b2d] rounded-2xl p-5 text-white shadow-xl border border-gray-800">
+            <div className="flex justify-between items-center pb-3 border-b border-gray-800">
+              <span className="text-xs uppercase font-bold tracking-wider text-gray-400">Bundle Status</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#164475] text-white">
+                {bundle.length} / {bundleProducts.length || 4} Selected
+              </span>
+            </div>
+
+            <div className="my-4 space-y-1">
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>Subtotal:</span>
+                <span className="line-through">{formatPrice(bundleTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold text-white">
+                <span>Bundle Total:</span>
+                <span className="text-emerald-400 text-lg">{formatPrice(discountedTotal)}</span>
+              </div>
+              {bundle.length >= 2 && (
+                <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 mt-1">
+                  <span>🎉 30% Discount Applied!</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={onAddBundleToCart}
+              disabled={bundle.length === 0}
+              className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                bundle.length > 0
+                  ? "bg-[#164475] hover:bg-[#0f3256] text-white shadow-lg cursor-pointer"
+                  : "bg-gray-800 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              Add Selected ({bundle.length}) to Cart
+            </button>
+            {showBundleMessage && (
+              <p className="text-xs text-emerald-400 text-center mt-2 font-medium animate-pulse">
+                ✓ Added bundle to your cart!
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Grid containing cards and Your Bundle sticky sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
-          
-          {/* Left Column product grid — scrollable */}
-          <div className="lg:col-span-2 reveal-left">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {loading && (
-            <div className="col-span-full py-12 flex justify-center items-center">
-              <div className="w-10 h-10 border-4 border-[#164475] border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
-          {!loading && bundleProducts.map(prod => {
-              const inBundle = bundle.find(b => b.id === prod.id || b._id === prod._id);
-              return (
-                <div key={prod.id} className="bg-[#f8f9fa] rounded-[20px] flex flex-col justify-between p-4 card-hover">
-                  {/* Image Area */}
-                  <div className="relative bg-[#f8f9fa] rounded-[16px] flex items-center justify-center h-[200px] w-full overflow-hidden select-none">
-                    <img 
-                      src={prod.image} 
-                      className="max-h-[75%] max-w-[75%] object-contain select-none pointer-events-none" 
-                      alt={prod.name} 
-                      referrerPolicy="no-referrer"
-                    />
-                    {prod.tag === "Hot" ? (
-                      <span className="absolute top-3 right-3 bg-[#0a1b2d] text-white text-[10px] font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider select-none">
-                        HOT
-                      </span>
-                    ) : (
-                      <span className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full text-xs font-medium text-black flex items-center space-x-1 shadow-sm select-none">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span>5.0</span>
-                      </span>
-                    )}
+        {/* Product Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {bundleProducts.map((product) => {
+            const isSelected = bundle.some((b) => b.id === product.id || b._id === product._id);
+            return (
+              <div key={product._id || product.id} className="relative group">
+                <div className={`transition-all rounded-2xl ${isSelected ? 'ring-2 ring-[#164475] shadow-lg' : ''}`}>
+                  <ProductCard product={product} formatPrice={formatPrice} />
+
+                  <div className="p-4 pt-0">
+                    <button
+                      onClick={() => onToggleBundle(product)}
+                      className={`w-full py-2.5 rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 border ${
+                        isSelected
+                          ? "bg-emerald-600 border-emerald-600 text-white shadow-md"
+                          : "bg-gray-50 border-gray-200 text-[#0a1b2d] hover:bg-[#164475] hover:text-white hover:border-[#164475]"
+                      }`}
+                    >
+                      {isSelected ? "✓ Selected in Bundle" : "+ Add to Bundle"}
+                    </button>
                   </div>
-
-                  {/* Text area */}
-                  <div className="mt-4 space-y-1 text-left px-1">
-                    <span className="text-[12px] text-gray-500 block">Code u2917w</span>
-                    <div className="flex justify-between items-baseline py-0.5">
-                      <h4 className="text-[18px] font-bold text-black tracking-tight leading-snug">{prod.name}</h4>
-                      <span className="text-[14px] text-gray-500 pl-2 whitespace-nowrap">{formatPrice(prod.price)}</span>
-                    </div>
-                    
-                    <div className="pt-2">
-                      <button 
-                        onClick={() => onToggleBundle(prod)}
-                        className={`w-full py-3 rounded-full text-[13px] font-medium tracking-wide transition-all duration-300 cursor-pointer text-center border ${
-                          inBundle 
-                            ? 'bg-[#164475] hover:bg-[#0c2f56] text-white border-transparent shadow-md' 
-                            : 'bg-transparent text-black border-gray-300 hover:border-[#164475]'
-                        }`}
-                      >
-                        Add to Bundle
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          </div>
-
-          {/* Right Column — Bundle Calculator FIXED to viewport */}
-          <div className="hidden lg:block relative reveal-right delay-200">
-            <div className="bg-white p-8 rounded-[24px] border border-gray-200 shadow-sm flex flex-col justify-between sticky top-6" style={{ position: 'sticky', top: '24px' }}>
-              <div className="space-y-4">
-                <h3 className="text-[34px] font-bold text-black tracking-tight text-center">
-                  Your Bundle
-                </h3>
-                <p className="text-[14px] text-gray-500 text-center leading-relaxed font-normal">
-                  Add at least 3 products to proceed and Save 30%
-                </p>
-
-                {/* Progress Bar of Bundle items select */}
-                <div className="py-4 border-b border-gray-100 mb-2">
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden max-w-[280px] mx-auto">
-                    <div 
-                      className="bg-[#164475] h-full transition-all duration-500" 
-                      style={{ width: `${Math.min((bundle.length / 3) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Selected List details without internal scrollbar */}
-                <div className="divide-y divide-gray-100 pr-1">
-                  {bundle.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-gray-400 flex flex-col items-center justify-center space-y-3 select-none">
-                      <span className="text-4xl">🧩</span>
-                      <p className="font-bold text-gray-500 font-sans">No products in your bundle yet.</p>
-                    </div>
-                  ) : (
-                    bundle.map(item => (
-                      <div key={item.id} className="py-4 flex items-center justify-between">
-                        <div className="flex items-center space-x-4 text-left">
-                          <div className="w-[64px] h-[64px] rounded-[14px] bg-[#f8f9fa] flex flex-shrink-0 items-center justify-center p-1.5">
-                            <img 
-                              src={item.image} 
-                              className="max-h-full max-w-full object-contain" 
-                              alt={item.name} 
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                          <div className="flex-1 max-w-[190px]">
-                            <h5 className="text-[15px] font-bold text-[#0c2f56] leading-tight">{item.name}</h5>
-                            <p className="text-[12px] text-gray-400 font-bold my-1">Code {item.code}</p>
-                            <p className="text-[16px] font-bold text-[#0c2f56]">{formatPrice(item.price)}</p>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center space-y-1.5 justify-center">
-                          <div className="w-[44px] h-[44px] flex items-center justify-center bg-[#f8f9fa] border border-gray-200 text-[15px] font-bold rounded-xl text-black">
-                            1
-                          </div>
-                          <button 
-                            onClick={() => onToggleBundle(item)} 
-                            className="text-[12px] text-gray-400 hover:text-[#164475] font-bold transition cursor-pointer bg-transparent border-none underline underline-offset-2"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
-
-              {/* Price Calculations footer */}
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <div className="flex justify-between items-center py-2 mb-4">
-                  <span className="text-[24px] font-bold text-[#0c2f56]">Total</span>
-                  <span className="text-[34px] font-bold text-[#0c2f56]">
-                    {formatPrice(discountedTotal)}
-                  </span>
-                </div>
-
-                {showBundleMessage && (
-                  <p className="text-[12px] text-[#164475] font-bold text-center animate-pulse py-2">
-                    ⚠️ Please select at least 3 items to get the 30% off benefit!
-                  </p>
-                )}
-
-                <button 
-                  onClick={onAddBundleToCart}
-                  className="w-full bg-[#164475] hover:bg-[#0c2f56] active:scale-[0.98] text-white text-[16px] font-bold tracking-wide py-4 rounded-full shadow-lg transition duration-300 cursor-pointer border-none"
-                >
-                  Add to Cart
-                </button>
-              </div>
-            </div>
-          </div>
-
+            );
+          })}
         </div>
+
       </div>
     </section>
   );

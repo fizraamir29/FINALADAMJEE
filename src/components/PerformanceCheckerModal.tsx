@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { PROCESSORS, GPUS, MEMORIES, TARGET_GAMES } from "../data";
