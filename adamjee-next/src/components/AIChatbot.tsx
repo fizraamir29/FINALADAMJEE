@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Minus, Bot, User, Sparkles, ShoppingBag, Headphones, Package, ChevronRight, Loader2 } from 'lucide-react';
-import { NEW_ARRIVALS, BUNDLE_PRODUCTS } from '../data';
 
 interface Message {
   id: string;
@@ -116,7 +115,7 @@ export default function AIChatbot() {
     <>
       {/* ─── FLOATING TRIGGER ─── */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-[999]">
+        <div className="fixed z-[999]" style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))', right: '16px' }}>
           <div className="absolute inset-0 rounded-full bg-[#164475]/30 animate-ping" />
           {hasBadge && (
             <span className="absolute -top-1 -right-1 z-10 w-5 h-5 bg-[#0a1b2d] rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white">1</span>
@@ -134,12 +133,13 @@ export default function AIChatbot() {
       {/* ─── CHAT WINDOW ─── */}
       {isOpen && (
         <div
-          className="fixed bottom-6 right-6 z-[999] flex flex-col rounded-3xl shadow-2xl border border-[#e2e8f0] bg-white overflow-hidden animate-zoom-in"
+          className="fixed z-[999] flex flex-col rounded-3xl shadow-2xl border border-[#e2e8f0] bg-white overflow-hidden animate-zoom-in"
           style={{ 
-            width: '360px', 
-            maxWidth: 'calc(100vw - 48px)',
-            height: isMinimized ? '68px' : '560px', 
-            maxHeight: 'calc(100vh - 48px)',
+            bottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+            right: '16px',
+            width: 'min(360px, calc(100vw - 32px))', 
+            height: isMinimized ? '68px' : 'min(560px, calc(100dvh - 100px))', 
+            maxHeight: 'calc(100dvh - 80px)',
             transition: 'height 0.3s cubic-bezier(0.4,0,0.2,1)' 
           }}
         >

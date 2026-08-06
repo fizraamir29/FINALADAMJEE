@@ -1,8 +1,8 @@
-import { Product, PCComponent, GameMetrics, Testimonial, BlogPost } from "./types";
+import { Product, PCComponent, GameMetrics } from "./types";
 
 export const CURRENCIES = {
-  USD: { symbol: "$", rate: 1, name: "United States (USD $)" },
-  PKR: { symbol: "Rs. ", rate: 278, name: "Pakistan (Rs. PKR)" }
+  USD: { symbol: "Rs. ", rate: 1, name: "Pakistan (Rs. PKR)" },
+  PKR: { symbol: "Rs. ", rate: 1, name: "Pakistan (Rs. PKR)" }
 };
 
 export const NEW_ARRIVALS: Product[] = [
@@ -13,13 +13,38 @@ export const NEW_ARRIVALS: Product[] = [
     price: 500.00,
     rating: 5.0,
     image: "/images/dell_led_monitor_1780238004077.png",
-    category: "Accessories",
+    category: "Monitors",
     tag: "New",
     description: "The Dell UltraSharp U2917W is a 29-inch UltraWide IPS monitor designed to enhance productivity and streamline multitasking. With its 21:9 aspect ratio and 2560×1080 resolution, it offers significantly more horizontal screen space.",
     additionalImages: [
       "/images/dell_led_monitor_1780238004077.png",
       "/images/rog_monitor_new.png"
-    ]
+    ],
+    specBullets: [
+      "Screen size: 29-inch UltraWide (2560×1080 resolution)",
+      "Panel type: IPS with professional color calibration (Delta-E < 2)",
+      "Aspect Ratio: 21:9 for expansive multitasking productivity",
+      "Stand: Fully adjustable (height, tilt, swivel, pivot)",
+      "Ports: 1× DisplayPort, 1× Mini-DP, 2× HDMI, 4× USB 3.0",
+      "Colors: sRGB 99% coverage for precise design workflows"
+    ],
+    feature1Title: "Premium UltraWide Productivity",
+    feature1Sub: "Expansive 21:9 UltraWide Display for Productivity",
+    feature1Desc: "The Dell UltraSharp U2917W is a 29-inch UltraWide IPS monitor designed to enhance productivity and streamline multitasking. With its 21:9 aspect ratio and 2560×1080 resolution, it offers significantly more horizontal screen space.",
+    feature1Desc2: "It features professional color calibration right out of the box (Delta-E <2) so all design work displays perfectly with ultra-wide viewing angles.",
+    feature1Img: "/images/dell_led_monitor_1780238004077.png",
+    feature2Title: "Ergonomic and Professional Design",
+    feature2Sub: "Built for Ultimate Comfort",
+    feature2Desc: "Adjust height, tilt, swivel and pivot to your exact comfort preference. The screen border is thin, making it perfect for multi-display setups.",
+    feature2Desc2: "An integrated cable management slot in the stand guides cables neatly to keep your desktop workspace clutter-free.",
+    feature2Img: "/images/rog_monitor_new.png",
+    accordionItems: [
+      { title: "Display Specifications", content: "29\" UltraWide LED, 2560x1080 resolution, 21:9 aspect ratio, 60Hz refresh rate, 5ms response time, IPS panel, sRGB 99% coverage." },
+      { title: "Connectivity & Ports", content: "1x DisplayPort 1.2, 1x Mini-DisplayPort, 1x DisplayPort-out (MST), 2x HDMI 1.4, 4x USB 3.0 downstream ports, 1x USB 3.0 upstream port." },
+      { title: "Dimensions & Ergonomics", content: "Adjustable height up to 130mm, tilt (-5° to 21°), swivel (-30° to 30°), pivot (90° clockwise). VESA mountable 100x100mm." }
+    ],
+    colors: ["Black", "Midnight Blue"],
+    colorLabel: "Frame Color"
   },
   {
     id: "na2",
@@ -28,14 +53,39 @@ export const NEW_ARRIVALS: Product[] = [
     price: 500.00,
     rating: 5.0,
     image: "/images/mechanical_keyboard_1780238028029.png",
-    category: "Accessories",
+    category: "Keyboards",
     tag: "Hot",
     description: "The Aftershock Oden is a tenkeyless mechanical gaming keyboard built with Cherry MX switches. Featuring per-key RGB, N-key rollover, and a premium aluminium top plate.",
     additionalImages: [
       "/images/mechanical_keyboard_1780238028029.png",
       "/images/mechanical_keyboard_1780238028029.png",
       "/images/mechanical_keyboard_1780238028029.png"
-    ]
+    ],
+    specBullets: [
+      "Switches: Cherry MX Mechanical Switches",
+      "Form Factor: Compact Tenkeyless Layout (87 keys)",
+      "Backlighting: Per-key fully customizable RGB",
+      "Build: Premium anodized aluminium top plate",
+      "Rollover: N-key rollover with 100% anti-ghosting",
+      "Connectivity: Detachable USB-C braided cable"
+    ],
+    feature1Title: "Cherry MX Mechanical Switches",
+    feature1Sub: "Ultra-Tactile and Responsive Performance",
+    feature1Desc: "The Aftershock Oden features gold-crosspoint contact Cherry MX switches, delivering the ultimate key response and tactical feedback. Rated for over 50 million keystrokes for reliable durability.",
+    feature1Desc2: "Detachable high-speed USB-C braided cable provides low-latency connectivity and makes the keyboard highly portable for travel.",
+    feature1Img: "/images/mechanical_keyboard_1780238028029.png",
+    feature2Title: "Premium Anodized Aluminium Plate",
+    feature2Sub: "Heavy-Duty Construction",
+    feature2Desc: "Crafted with an aerospace-grade anodized aluminium top plate, the keyboard offers a rigid, non-slip frame built to withstand intense gaming sessions.",
+    feature2Desc2: "Per-key dynamic RGB backlighting can be customized via software, offering 16.8 million colors and reactive animations.",
+    feature2Img: "/images/mechanical_keyboard_1780238028029.png",
+    accordionItems: [
+      { title: "Switch Specifications", content: "Cherry MX Mechanical Switches, 2.0mm actuation distance, 4.0mm total travel, 45g actuation force, tactile bump/click feedback." },
+      { title: "Keycaps & Layout", content: "Compact Tenkeyless (TKL) 87-key layout, double-shot injection PBT keycaps, standard bottom row, wear-resistant legends." },
+      { title: "Dimensions & Package", content: "Dimensions: 360 x 140 x 38mm. Package includes: Oden Keyboard, Braided USB-C Cable, Keycap Puller, User Manual." }
+    ],
+    colors: ["Eclipse Black", "Snow White"],
+    colorLabel: "Keycap Set"
   },
   {
     id: "na3",
@@ -202,231 +252,3 @@ export const TARGET_GAMES: GameMetrics[] = [
   { name: "Call of Duty: Warzone 3.0 (Battle Royale)", cpuScale: 1.5, gpuScale: 1.4, baseFps: 105 }
 ];
 
-export const TESTIMONIALS: Testimonial[] = [
-  {
-    name: "Hamza A.",
-    text: "Absolutely loved the custom PC build quality and cable management. The performance is smooth, and the team guided me perfectly throughout the process.",
-    verified: true,
-    image: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150"
-  },
-  {
-    name: "Adamjee Setup Showcase",
-    text: "Dual screens with glowing mechanical keyboard and extreme water cooling setup setup build.",
-    verified: true,
-    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-gaming-setup-with-keyboard-and-mouse-rgb-lighting-40019-large.mp4"
-  },
-  {
-    name: "Ali R.",
-    text: "Ordered my gaming setup from Adamjee Computers and the experience was amazing. Genuine products, fast delivery, and excellent customer support.",
-    verified: true,
-    image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150"
-  },
-  {
-    name: "Futuristic Studio",
-    text: "RGB glowing desktop setup",
-    verified: true,
-    videoUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=400"
-  },
-  {
-    name: "Zeeshan T.",
-    text: "Their upgrade recommendations helped me improve my FPS and streaming performance without overspending. Highly recommended for gamers.",
-    verified: true,
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"
-  },
-  {
-    name: "Submit Setup",
-    text: "Join the legendary Adamjee Battlestations ring",
-    verified: true,
-    isCustomSubmit: true
-  }
-];
-
-export const BLOG_POSTS: BlogPost[] = [
-  {
-    id: "blog1",
-    title: "How to Build a Gaming PC",
-    image: "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&q=80&w=600",
-    tag: "GAMING PC",
-    date: "13 May 2026",
-    desc: "Building a gaming PC may seem complicated at first, but with the right components and planning, you can craft the perfect rig. Follow our comprehensive tutorial."
-  },
-  {
-    id: "blog2",
-    title: "Best GPUs for Gaming in Pakistan",
-    image: "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&q=80&w=600",
-    tag: "GPUs",
-    date: "13 May 2026",
-    desc: "Choosing the right graphics card is one of the most important decisions for any gaming setup. Whether you play competitive esports titles or high-end AAA games..."
-  }
-];
-
-export const ALL_PRODUCTS: Product[] = [
-  // Headphones (4)
-  {
-    id: "hp1",
-    name: "ASUS ROG Red & Black Gaming Headset",
-    code: "Code HP-ROG-RED",
-    price: 150.00,
-    rating: 4.8,
-    image: "/images/headphones_red_black_1780246535746.png",
-    category: "Headphones",
-    tag: "Hot",
-    description: "The ASUS ROG Gaming Headset delivers immersive 7.1 surround sound with premium 50mm neodymium drivers. Features a detachable noise-cancelling boom mic, memory foam ear cushions, and RGB lighting for your battle station."
-  },
-  {
-    id: "hp2",
-    name: "Premium 3D Wireless Gaming Headset",
-    code: "Code HP-3D-WRLS",
-    price: 199.00,
-    rating: 5.0,
-    image: "/images/3d_gaming_headset.png",
-    category: "Headphones",
-    tag: "New",
-    description: "Experience true wireless freedom with this Premium 3D Gaming Headset. Bluetooth 5.2 with 40-hour battery life, Hi-Res Audio certified, and virtual 3D spatial audio for unmatched immersion."
-  },
-  {
-    id: "hp3",
-    name: "RGB Surround Sound Gaming Headphones",
-    code: "Code HP-RGB-SURR",
-    price: 120.00,
-    rating: 4.7,
-    image: "/images/rgb_gaming_headphones_1780227081148.png",
-    category: "Headphones",
-    description: "Premium RGB Gaming Headphones with 50mm drivers and virtual 7.1 surround sound. Foldable design with memory foam ear cups and a flexible microphone for crystal-clear team communication."
-  },
-  {
-    id: "hp4",
-    name: "Wireless Pro Noise Cancelling Headset",
-    code: "Code HP-WL-PRO",
-    price: 250.00,
-    rating: 4.9,
-    image: "/images/headphones_deal_1780250259718.png",
-    category: "Headphones",
-    tag: "20% OFF",
-    description: "Professional-grade Active Noise Cancellation with three ANC modes. Hi-Res Audio, 30-hour battery, USB-C fast charging, and multi-device pairing for seamless switching between PC and mobile."
-  },
-
-  // Earphones (3)
-  {
-    id: "ep1",
-    name: "TWS Pro Wireless Blue Earbuds",
-    code: "Code EP-TWS-BLUE",
-    price: 89.00,
-    rating: 4.9,
-    image: "/images/tws_blue_earbuds_1780227103510.png",
-    category: "Earphones",
-    tag: "Hot",
-    description: "True Wireless earbuds with Bluetooth 5.3, Active Noise Cancellation, and 8+32hr total battery life. IPX5 water resistant with premium 10mm titanium-coated drivers for deep bass and crisp highs."
-  },
-  {
-    id: "ep2",
-    name: "Premium Wireless Sport Earbuds",
-    code: "Code EP-WL-PREM",
-    price: 79.00,
-    rating: 4.7,
-    image: "/images/new_earbuds_transparent.png",
-    category: "Earphones",
-    tag: "New",
-    description: "Sport-optimized wireless earbuds with secure ear-hook design, IPX7 waterproofing, and 6-hour playtime per charge. Perfect for workouts, commutes, and all-day listening."
-  },
-  {
-    id: "ep3",
-    name: "High-Fidelity Wired In-Ear Monitors",
-    code: "Code EP-WD-HI-FI",
-    price: 49.00,
-    rating: 4.5,
-    image: "/images/new_earbuds_transparent.png",
-    category: "Earphones",
-    description: "Studio-grade wired in-ear monitors with dual-driver hybrid system (dynamic + balanced armature). Detachable 3.5mm cable with inline mic for calls. Perfect for audiophiles and content creators."
-  },
-
-  // Speakers (2)
-  {
-    id: "sp1",
-    name: "LD Systems Premium Bluetooth Speaker",
-    code: "Code SP-LD-PREM",
-    price: 349.00,
-    rating: 5.0,
-    image: "/images/image 117.png",
-    category: "Speakers",
-    tag: "Hot",
-    description: "The LD Systems Premium Bluetooth Speaker delivers 120W RMS with a 2.1 channel system. Deep bass subwoofer, optical and AUX inputs, RGB sync lighting, and wireless multi-room audio support."
-  },
-  {
-    id: "sp2",
-    name: "RGB Desktop Gaming Soundbar Speakers",
-    code: "Code SP-RGB-SND",
-    price: 99.00,
-    rating: 4.7,
-    image: "/images/image 122.png",
-    category: "Speakers",
-    tag: "New",
-    description: "Compact RGB gaming soundbar with 60W stereo output and built-in subwoofer. USB, optical, and Bluetooth connectivity. RGB lighting syncs with your gaming setup for the ultimate aesthetic."
-  },
-
-  // Accessories (6)
-  {
-    id: "ac1",
-    name: "Glowing RGB Wired Gaming Mouse",
-    code: "Code MS-RGB-GLOW",
-    price: 45.00,
-    rating: 4.8,
-    image: "/images/gaming_mouse_rgb_new.png",
-    category: "Accessories",
-    description: "High-precision RGB gaming mouse with PixArt optical sensor, 6400 DPI, 6 programmable buttons, and ergonomic design. Braided USB cable and PTFE feet for smooth gliding on any surface."
-  },
-  {
-    id: "ac2",
-    name: "Premium Ergonomic Blue Gaming Chair",
-    code: "Code CH-ERGO-BLUE",
-    price: 299.00,
-    rating: 5.0,
-    image: "/images/gaming_chair_blue_1780246513295.png",
-    category: "Accessories",
-    tag: "Hot",
-    description: "Premium ergonomic gaming chair with lumbar and neck memory foam pillows, 4D adjustable armrests, 155° recline, and class-4 hydraulic gas lift. Supports up to 150kg with PU leather upholstery."
-  },
-  {
-    id: "ac3",
-    name: "Aftershock Oden Mechanical Keyboard",
-    code: "Code asmkb87-2020",
-    price: 119.00,
-    rating: 5.0,
-    image: "/images/mechanical_keyboard_1780238028029.png",
-    category: "Accessories",
-    tag: "New",
-    description: "The Aftershock Oden is a premium TKL mechanical keyboard with Cherry MX switches, per-key RGB lighting, N-key rollover, and aluminium top plate for professional gamers and typists."
-  },
-  {
-    id: "ac4",
-    name: "GameSir T4 Cyclone Pro Controller",
-    code: "Code GAMESIR-T4-PRO",
-    price: 59.00,
-    rating: 4.8,
-    image: "/images/gamesir_controller_1780238117003.png",
-    category: "Accessories",
-    description: "GameSir T4 with Hall-effect joysticks (zero drift), 2.4GHz wireless (<5ms latency), 20-hour battery, adjustable triggers, and universal compatibility with PC, Android, iOS, and Nintendo Switch."
-  },
-  {
-    id: "ac5",
-    name: "ASUS ROG Swift 360Hz Gaming Monitor",
-    code: "Code MON-ROG360",
-    price: 599.00,
-    rating: 5.0,
-    image: "/images/rog_monitor_new.png",
-    category: "Accessories",
-    tag: "Hot",
-    description: "ASUS ROG Swift 24.5\" FHD 360Hz IPS gaming monitor with 1ms GTG response time, G-SYNC Ultimate, NVIDIA Reflex Latency Analyzer, and ROG OLED display for competitive esports gaming."
-  },
-  {
-    id: "ac6",
-    name: "Meta Quest 3 VR Headset",
-    code: "Code VR-CONSOLE",
-    price: 399.00,
-    rating: 4.9,
-    image: "/images/deal-vr.png",
-    category: "Accessories",
-    tag: "30% OFF",
-    description: "The Meta Quest 3 delivers a stunning mixed reality experience with 4K+ display, 120Hz refresh rate, inside-out 6DoF tracking, and pancake lenses. Standalone VR with optional PC streaming via Air Link."
-  }
-];

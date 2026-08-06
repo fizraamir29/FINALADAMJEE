@@ -30,8 +30,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# ─── SECURITY: env & credential files — NEVER commit these ───
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
+# Allow only the example template
+!.env.example
+
+# Block any db/credential scripts
+scripts/test-orders-api.js
+check_db.js
+check_db.ts
+*credentials*
+*secrets*
 
 # vercel
 .vercel

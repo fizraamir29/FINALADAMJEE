@@ -3,6 +3,7 @@ import Link from 'next/link';
 import React, { useState, useEffect, useRef } from 'react';
 
 import { Shield, Zap, Award, Users, Truck, Headphones, ChevronRight, Play, Plus, ArrowRight } from 'lucide-react';
+import Testimonials from '../components/Testimonials';
 
 // CountUp Component for Section 2 stats
 function AnimatedCounter({ target, suffix = '', duration = 1000, startOnVisible = true }: { target: number; suffix?: string; duration?: number; startOnVisible?: boolean }) {
@@ -226,40 +227,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* SECTION 4 — WHY CHOOSE US — 6 FEATURE CARDS */}
-      <section className="py-24 bg-gray-50 border-y border-gray-100">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="mb-16 text-center">
-            <h2 className="text-3xl md:text-4xl font-black text-[#0a1b2d] tracking-tight mb-2">
-              Why Choose Us
-            </h2>
-            <p className="text-gray-400 font-medium">What sets us apart from local market vendors</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { title: "Genuine Products", desc: "100% authentic hardware, warranty included direct from verified brand channels.", icon: "✅" },
-              { title: "Fast Nationwide Delivery", desc: "48 hour express packing and delivery to major cities across Pakistan.", icon: "🚚" },
-              { title: "Expert Support", desc: "Professional, one-on-one tech guidance for component pairings and benchmarks.", icon: "🔧" },
-              { title: "Competitive Prices", desc: "Best prices in the Pakistan market, passing wholesale savings directly to you.", icon: "💰" },
-              { title: "Custom PC Builds", desc: "Assemble step-by-step with 13+ component options, fully custom configurations.", icon: "🏗️" },
-              { title: "PDF Quotation", desc: "Instant quote builder and PDF download matching current store catalog prices.", icon: "📄" }
-            ].map((card, idx) => (
-              <div 
-                key={card.title}
-                className="reveal-up bg-white border border-gray-200 rounded-3xl p-8 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
-                style={{ transitionDelay: `${idx * 100}ms` }}
-              >
-                <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-2xl mb-6 border border-gray-100 group-hover:bg-[#164475]/5 transition-colors">
-                  {card.icon}
-                </div>
-                <h3 className="text-lg font-black text-[#0a1b2d] mb-3">{card.title}</h3>
-                <p className="text-[#64748b] text-sm leading-relaxed font-semibold">{card.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* SECTION 4 — WHY CHOOSE US — same component as homepage */}
+      <Testimonials onOpenSubmitModal={() => {}} />
 
       {/* SECTION 5 — OUR PROCESS (How It Works) */}
       <section className="py-24">

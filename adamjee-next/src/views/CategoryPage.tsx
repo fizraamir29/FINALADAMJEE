@@ -1,97 +1,188 @@
 'use client';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import React, { useState, useEffect, useRef } from "react";
+import { useParams, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useRef, Suspense } from "react";
 
 import { Product } from "../types";
-import { Filter, X, Star, ChevronDown, ChevronRight, ArrowRight } from "lucide-react";
+import { getCategoryFallbackImage, getProductImage } from "../utils/storage";
+import { Filter, X, Star, ChevronDown, ChevronRight, ArrowRight, PackageX } from "lucide-react";
+
+import ModernSelect from '../components/ModernSelect';
+import ProductCard from '../components/ProductCard';
 
 interface CategoryPageProps {
   handleAddToCart: (product: Product) => void;
   formatPrice: (usdAmount: number) => string;
 }
 
-const getTabsData = (products: Product[]) => [
-  { label: "All", count: products.length },
-  { label: "Headphones", count: products.filter(p => p.category === "Headphones").length },
-  { label: "Earphones", count: products.filter(p => p.category === "Earphones").length },
-  { label: "Speakers", count: products.filter(p => p.category === "Speakers").length },
-  { label: "Accessories", count: products.filter(p => p.category === "Accessories").length },
-];
-
-export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryPageProps) {
+function CategoryPageInner({ handleAddToCart, formatPrice }: CategoryPageProps) {
   const { id } = useParams() as { id: string };
-  const [activeTab, setActiveTab] = useState("All");
+  const searchParams = useSearchParams();
+  const urlCategory = searchParams.get('category'); // e.g. "Headphones" from ?category=Headphones
+
+  // Initialize activeTab from URL ?category= param
+  const [activeTab, setActiveTab] = useState<string>(urlCategory || "All");
   const [sortBy, setSortBy] = useState("Featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
-  const [sidebarCategory, setSidebarCategory] = useState("All Products");
+  const [sidebarCategory, setSidebarCategory] = useState<string>("All Products");
   const [sidebarPrice, setSidebarPrice] = useState<string | null>(null);
+  const [minPriceInput, setMinPriceInput] = useState<string>('');
+  const [maxPriceInput, setMaxPriceInput] = useState<string>('');
   const [sidebarBrand, setSidebarBrand] = useState<string | null>(null);
+  const [sidebarCondition, setSidebarCondition] = useState<string | null>(null);
+  const [sidebarRam, setSidebarRam] = useState<string | null>(null);
+  const [sidebarStorage, setSidebarStorage] = useState<string | null>(null);
+  const [sidebarProcessor, setSidebarProcessor] = useState<string | null>(null);
   const [sidebarAvailability, setSidebarAvailability] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const ITEMS_PER_PAGE = 8;
 
   const heroRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Products data filtered and sorted dynamically
   const soldOutIds = ["hp3", "ac6"];
 
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Reset page to 1 whenever filters or category tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, sidebarCategory, sidebarPrice, minPriceInput, maxPriceInput, sidebarBrand, sidebarCondition, sidebarRam, sidebarStorage, sidebarProcessor, sidebarAvailability, sortBy]);
+
+  // Sync activeTab when URL changes (e.g. user clicks a category card)
+  useEffect(() => {
+    if (urlCategory) {
+      setActiveTab(urlCategory);
+    } else {
+      setActiveTab("All");
+    }
+  }, [urlCategory]);
 
   useEffect(() => {
-    fetch('/api/products?limit=100')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.products) {
-          setProductsList(data.products);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    setIsMounted(true);
+
+    const fetchProds = () => {
+      fetch('/api/products?limit=100')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.products)) {
+            setProductsList(data.products);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    };
+
+    fetchProds();
+
+    window.addEventListener('adamjee_new_product', fetchProds);
+    window.addEventListener('storage', fetchProds);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('adamjee_products_channel');
+      bc.onmessage = () => fetchProds();
+    } catch (e) {}
+
+    return () => {
+      window.removeEventListener('adamjee_new_product', fetchProds);
+      window.removeEventListener('storage', fetchProds);
+      if (bc) bc.close();
+    };
   }, []);
 
-  const TABS = getTabsData(productsList);
+  // Dynamically derive unique categories from backend products
+  const dynamicCategories = React.useMemo(() => {
+    const cats = new Set<string>();
+    productsList.forEach(p => { if (p.category) cats.add(p.category.trim()); });
+    return Array.from(cats).sort();
+  }, [productsList]);
 
+  // Dynamically derive unique brands from backend products
+  const dynamicBrands = React.useMemo(() => {
+    const brands = new Set<string>(["ASUS ROG", "Corsair", "Razer", "MSI", "Logitech", "Dell", "HP", "Lenovo"]);
+    productsList.forEach(p => {
+      if ((p as any).brand) brands.add((p as any).brand.trim());
+      else if (p.name) {
+        const firstWord = p.name.split(' ')[0];
+        if (firstWord.length > 2) brands.add(firstWord);
+      }
+    });
+    return Array.from(brands).sort();
+  }, [productsList]);
+
+  // Build tabs dynamically: All + every unique category from backend
+  const TABS = React.useMemo(() => {
+    const tabs = [{ label: "All", count: productsList.length }];
+    dynamicCategories.forEach(cat => {
+      tabs.push({ label: cat, count: productsList.filter(p => p.category === cat).length });
+    });
+    return tabs;
+  }, [productsList, dynamicCategories]);
+
+  // Master filter: activeTab (top bar) + sidebar filters
   const filteredProducts = productsList.filter(product => {
-    // Top Tabs
+    // Top Tabs category filter
     if (activeTab !== "All" && product.category !== activeTab) return false;
-    
-    // Sidebar Categories
-    if (sidebarCategory !== "All Products") {
-      if (product.category !== sidebarCategory) return false;
-    }
-    
-    // Price
+
+    // Sidebar Categories filter
+    if (sidebarCategory !== "All Products" && product.category !== sidebarCategory) return false;
+
+    // Price preset filter (PKR)
     if (sidebarPrice) {
-      if (sidebarPrice === "Under $50" && product.price >= 50) return false;
-      if (sidebarPrice === "$50 — $200" && (product.price < 50 || product.price > 200)) return false;
-      if (sidebarPrice === "$200 — $500" && (product.price < 200 || product.price > 500)) return false;
-      if (sidebarPrice === "$500 — $1,000" && (product.price < 500 || product.price > 1000)) return false;
-      if (sidebarPrice === "Over $1,000" && product.price <= 1000) return false;
+      if (sidebarPrice === "Under PKR 25,000" && product.price >= 25000) return false;
+      if (sidebarPrice === "PKR 25,000 — 100,000" && (product.price < 25000 || product.price > 100000)) return false;
+      if (sidebarPrice === "PKR 100,000 — 250,000" && (product.price < 100000 || product.price > 250000)) return false;
+      if (sidebarPrice === "Over PKR 250,000" && product.price <= 250000) return false;
     }
-    
-    // Brands
+
+    // Min / Max numeric PKR Price Inputs
+    if (minPriceInput && product.price < Number(minPriceInput)) return false;
+    if (maxPriceInput && product.price > Number(maxPriceInput)) return false;
+
+    // Brand filter
     if (sidebarBrand) {
       const brandWord = sidebarBrand.split(' ')[0].toLowerCase();
-      if (!product.name.toLowerCase().includes(brandWord)) return false;
+      const matchBrand = ((product as any).brand || product.name || '').toLowerCase().includes(brandWord);
+      if (!matchBrand) return false;
     }
-    
-    // Availability
+
+    // Condition filter
+    if (sidebarCondition) {
+      const tagLower = (product.tag || product.promoText || '').toLowerCase();
+      const descLower = (product.description || '').toLowerCase();
+      if (sidebarCondition === "Brand New" && (tagLower.includes('refurbished') || descLower.includes('refurbished'))) return false;
+      if (sidebarCondition === "Refurbished" && !tagLower.includes('refurbished') && !descLower.includes('refurbished')) return false;
+    }
+
+    // Tech Specs search (RAM, Storage, Processor)
+    const textToSearch = `${product.name} ${product.description || ''} ${JSON.stringify((product as any).specs || {})}`.toLowerCase();
+    if (sidebarRam && !textToSearch.includes(sidebarRam.toLowerCase())) return false;
+    if (sidebarStorage && !textToSearch.includes(sidebarStorage.toLowerCase())) return false;
+    if (sidebarProcessor && !textToSearch.includes(sidebarProcessor.toLowerCase())) return false;
+
+    // Availability filter
     if (sidebarAvailability) {
-      const isStock = (product as any).stock !== undefined ? (product as any).stock > 0 : true; // assume in stock if undefined
+      const isStock = (product as any).stock !== undefined ? (product as any).stock > 0 : true;
       if (sidebarAvailability === "In Stock" && !isStock) return false;
       if (sidebarAvailability === "Out of Stock" && isStock) return false;
     }
-    
+
     return true;
   });
 
-  const products = [...filteredProducts].sort((a, b) => {
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortBy === "Price: Low to High") return a.price - b.price;
     if (sortBy === "Price: High to Low") return b.price - a.price;
-    return 0; // Featured
+    return 0;
   });
+
+  // Calculate pagination totals and current page items
+  const totalPages = Math.ceil(sortedProducts.length / ITEMS_PER_PAGE) || 1;
+  const products = sortedProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const categoryName = activeTab === "All"
     ? (id === "all" ? "All Products" : id === "best-sellers" ? "Best Sellers" : id === "accessories" ? "Gaming Accessories" : "PC Components")
@@ -124,7 +215,7 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
     const cards = document.querySelectorAll(".shop-card-reveal");
     cards.forEach((card) => observer.observe(card));
     return () => cards.forEach((card) => observer.unobserve(card));
-  }, [activeTab]);
+  }, [activeTab, productsList]);
 
   return (
     <div className="min-h-screen bg-[#fafbfc] relative">
@@ -137,7 +228,6 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
         className="relative bg-[#0a1b2d] text-white overflow-hidden"
         style={{ minHeight: "320px" }}
       >
-        {/* Dark image background */}
         <div
           className="absolute inset-0 bg-cover bg-center z-0"
           style={{
@@ -145,11 +235,9 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
             opacity: 0.25,
           }}
         />
-        {/* Dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a1b2d]/60 via-[#0a1b2d]/80 to-[#0a1b2d] z-[1]" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-12 pt-32 pb-16 flex flex-col justify-end">
-          {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-xs text-white/50 font-medium mb-6">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3" />
@@ -158,7 +246,6 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
             <span className="text-white font-bold">{categoryName}</span>
           </nav>
 
-          {/* Heading with left fade-in animation */}
           <h1
             className="text-4xl md:text-6xl font-black tracking-tight leading-[1.05]"
             style={{
@@ -182,7 +269,6 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
         </div>
       </div>
 
-      {/* Inline keyframe for hero */}
       <style>{`
         @keyframes heroHeadingIn {
           to { opacity: 1; transform: translateX(0); }
@@ -209,12 +295,15 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
             Show filters
           </button>
 
-          {/* Middle: Category Tabs */}
+          {/* Middle: Dynamic Category Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
             {TABS.map((tab) => (
               <button
                 key={tab.label}
-                onClick={() => setActiveTab(tab.label)}
+                onClick={() => {
+                  setActiveTab(tab.label);
+                  setSidebarCategory("All Products"); // reset sidebar when switching tab
+                }}
                 className={`relative px-4 py-2 text-sm font-semibold rounded-full transition-all whitespace-nowrap ${
                   activeTab === tab.label
                     ? "text-[#0a1b2d]"
@@ -222,7 +311,7 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
                 }`}
               >
                 {tab.label}
-                <sup className="ml-0.5 text-[10px] font-bold text-gray-400">{tab.count}</sup>
+                {isMounted && <sup className="ml-0.5 text-[10px] font-bold text-gray-400">{tab.count}</sup>}
                 {/* Active underline */}
                 {activeTab === tab.label && (
                   <span
@@ -239,18 +328,12 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
 
           {/* Right: Sort */}
           <div className="flex items-center gap-4">
-            <div className="relative inline-flex items-center bg-gray-100 text-xs font-bold text-gray-700 px-4 py-2.5 rounded-full cursor-pointer hover:bg-gray-200 transition-colors pr-8">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-transparent border-none outline-none appearance-none cursor-pointer font-bold text-gray-700 w-full"
-              >
-                <option value="Featured">Featured</option>
-                <option value="Price: Low to High">Price: Low to High</option>
-                <option value="Price: High to Low">Price: High to Low</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-3 pointer-events-none" />
-            </div>
+            <ModernSelect
+              className="w-48"
+              options={["Featured", "Price: Low to High", "Price: High to Low"]}
+              value={sortBy}
+              onChange={setSortBy}
+            />
           </div>
         </div>
       </div>
@@ -275,151 +358,156 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
               <div className="w-10 h-10 border-4 border-[#164475] border-t-transparent rounded-full animate-spin"></div>
             </div>
           )}
-          {!loading && products.map((product, idx) => {
-            const isSoldOut = soldOutIds.includes(product.id);
 
-            return (
-              <div
-                key={product.id}
-                className="shop-card-reveal opacity-0 translate-y-[30px]"
-                style={{
-                  transition: `opacity 500ms cubic-bezier(0.22,1,0.36,1), transform 500ms cubic-bezier(0.22,1,0.36,1)`,
-                  transitionDelay: `${idx * 80}ms`,
-                }}
-              >
-                <div className="bg-white rounded-[20px] border border-gray-100 overflow-hidden group hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] hover:-translate-y-2 transition-all duration-300 cursor-pointer relative">
-                  {/* Image Area */}
-                  <Link
-                    href={`/product/${product.id}`}
-                    className="relative block bg-[#f8f9fa] p-6 aspect-square flex items-center justify-center overflow-hidden"
-                  >
-                    {/* Tag badge */}
-                    {product.tag && !isSoldOut && (
-                      <span className="absolute top-4 left-4 bg-[#0a1b2d] text-white text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider z-10">
-                        {product.tag}
-                      </span>
-                    )}
-
-                    {/* Rating pill */}
-                    <span className="absolute top-4 right-4 bg-white px-2.5 py-1 rounded-full text-[11px] font-semibold text-[#0a1b2d] flex items-center gap-1 shadow-sm z-10">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                      {product.rating.toFixed(1)}
-                    </span>
-
-                    {/* Product Image */}
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-4/5 h-4/5 object-contain transition-transform duration-400 ease-out group-hover:scale-[1.08]"
-                      style={{ mixBlendMode: "multiply" }}
-                    />
-
-                    {/* 5. Sold Out Overlay */}
-                    {isSoldOut && (
-                      <div className="absolute inset-0 flex items-center justify-center z-20">
-                        <div className="bg-white/70 backdrop-blur-md px-6 py-3 rounded-full border border-white/50 shadow-lg">
-                          <span className="text-sm font-black text-[#0a1b2d] uppercase tracking-widest">Sold Out</span>
-                        </div>
-                      </div>
-                    )}
-                  </Link>
-
-                  {/* Info Area */}
-                  <div className="p-5 space-y-2">
-                    <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase block">{product.code}</span>
-                    <Link href={`/product/${product.id}`}>
-                      <h3 className="text-[15px] font-bold text-[#0a1b2d] leading-tight group-hover:text-[#164475] transition-colors line-clamp-2">
-                        {product.name}
-                      </h3>
-                    </Link>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[15px] font-black text-[#0a1b2d]">{formatPrice(product.price)}</span>
-                      {!isSoldOut && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }}
-                          className="w-9 h-9 rounded-full bg-[#0a1b2d] hover:bg-[#164475] text-white flex items-center justify-center transition-colors shadow-md hover:shadow-lg active:scale-95"
-                        >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Color swatches */}
-                    {product.additionalImages && product.additionalImages.length > 0 && (
-                      <div className="flex gap-1.5 pt-2">
-                        {product.additionalImages.slice(0, 3).map((img, i) => (
-                          <div
-                            key={i}
-                            className={`w-7 h-7 rounded-md border overflow-hidden flex items-center justify-center bg-white ${
-                              i === 0 ? "border-[#0a1b2d]" : "border-gray-200"
-                            }`}
-                          >
-                            <img src={img} alt="variant" className="w-5 h-5 object-contain" style={{ mixBlendMode: "multiply" }} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {/* ─── No Products Found State ─── */}
+          {!loading && products.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-24 gap-6">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <PackageX className="w-10 h-10 text-gray-300" />
               </div>
-            );
-          })}
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-black text-[#0a1b2d]">No products found</h3>
+                <p className="text-gray-400 text-sm max-w-sm">
+                  {activeTab !== "All"
+                    ? `No products in the "${activeTab}" category yet. Check back soon or browse other categories.`
+                    : "No products match your current filters. Try adjusting or clearing them."}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveTab("All");
+                  setSidebarCategory("All Products");
+                  setSidebarPrice(null);
+                  setMinPriceInput('');
+                  setMaxPriceInput('');
+                  setSidebarBrand(null);
+                  setSidebarCondition(null);
+                  setSidebarRam(null);
+                  setSidebarStorage(null);
+                  setSidebarProcessor(null);
+                  setSidebarAvailability(null);
+                }}
+                className="inline-flex items-center gap-2 bg-[#0a1b2d] text-white px-6 py-3 rounded-full text-sm font-bold hover:bg-[#164475] transition-colors cursor-pointer"
+              >
+                Clear Filters & View All Products <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {!loading && products.map((product, idx) => (
+            <div
+              key={product.id || (product as any)._id || idx}
+              className="shop-card-reveal opacity-0 translate-y-[30px]"
+              style={{
+                transition: `opacity 500ms cubic-bezier(0.22,1,0.36,1), transform 500ms cubic-bezier(0.22,1,0.36,1)`,
+                transitionDelay: `${idx * 80}ms`,
+              }}
+            >
+              <ProductCard
+                product={product}
+                formatPrice={(amt) => formatPrice(amt)}
+                onAddToCart={handleAddToCart}
+              />
+            </div>
+          ))}
 
           {/* ═══════════════════════════════════════════
-              4. PROMO CARD (inside grid)
+              4. PROMO CARD (inside grid) – only show when products exist
           ═══════════════════════════════════════════ */}
-          <div
-            className="shop-card-reveal opacity-0 translate-y-[30px] col-span-2 md:col-span-2"
-            style={{
-              transition: `opacity 500ms cubic-bezier(0.22,1,0.36,1), transform 500ms cubic-bezier(0.22,1,0.36,1)`,
-              transitionDelay: `${products.length * 80}ms`,
-            }}
-          >
-            <div className="relative rounded-[20px] overflow-hidden bg-[#0a1b2d] min-h-[360px] flex flex-col justify-end p-8 group">
-              <div
-                className="absolute inset-0 bg-cover bg-center z-0 transition-transform duration-700 group-hover:scale-105"
-                style={{ backgroundImage: 'url("/images/promo_gamers_bg.png")', opacity: 0.5 }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0a1b2d] via-[#0a1b2d]/50 to-transparent z-[1]" />
-              <div className="relative z-10 space-y-4">
-                <span className="text-[10px] font-black tracking-widest uppercase text-[#164475]">Limited Collection</span>
-                <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
-                  Premium Gaming<br />Accessories
-                </h3>
-                <p className="text-white/60 text-sm max-w-sm font-medium">
-                  Elevate your setup with hand-picked accessories designed for peak performance.
-                </p>
-                <Link
-                  href="/category/accessories"
-                  className="inline-flex items-center gap-2 border border-white/40 text-white px-6 py-3 rounded-full text-sm font-bold hover:bg-white hover:text-[#0a1b2d] transition-all"
-                >
-                  View Accessories <ArrowRight className="w-4 h-4" />
-                </Link>
+          {!loading && products.length > 0 && (
+            <div
+              className="shop-card-reveal opacity-0 translate-y-[30px] col-span-2 md:col-span-2"
+              style={{
+                transition: `opacity 500ms cubic-bezier(0.22,1,0.36,1), transform 500ms cubic-bezier(0.22,1,0.36,1)`,
+                transitionDelay: `${products.length * 80}ms`,
+              }}
+            >
+              <div className="relative rounded-[20px] overflow-hidden bg-[#0a1b2d] min-h-[360px] flex flex-col justify-end p-8 group">
+                <div
+                  className="absolute inset-0 bg-cover bg-center z-0 transition-transform duration-700 group-hover:scale-105"
+                  style={{ backgroundImage: 'url("/images/promo_gamers_bg.png")', opacity: 0.5 }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a1b2d] via-[#0a1b2d]/50 to-transparent z-[1]" />
+                <div className="relative z-10 space-y-4">
+                  <span className="text-[10px] font-black tracking-widest uppercase text-[#164475]">Limited Collection</span>
+                  <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
+                    Premium Gaming<br />Accessories
+                  </h3>
+                  <p className="text-white/60 text-sm max-w-sm font-medium">
+                    Elevate your setup with hand-picked accessories designed for peak performance.
+                  </p>
+                  <Link
+                    href="/category/accessories"
+                    className="inline-flex items-center gap-2 border border-white/40 text-white px-6 py-3 rounded-full text-sm font-bold hover:bg-white hover:text-[#0a1b2d] transition-all"
+                  >
+                    View Accessories <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Pagination */}
-        <div className="flex justify-center items-center gap-2 mt-16">
-          <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0a1b2d] hover:text-[#0a1b2d] transition-colors font-bold icon-hover-scale">
-            &larr;
-          </button>
-          <button className="w-10 h-10 rounded-full bg-[#0a1b2d] text-white flex items-center justify-center font-bold shadow-lg">
-            1
-          </button>
-          <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0a1b2d] hover:text-[#0a1b2d] transition-colors font-bold icon-hover-scale">
-            2
-          </button>
-          <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0a1b2d] hover:text-[#0a1b2d] transition-colors font-bold icon-hover-scale">
-            3
-          </button>
-          <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0a1b2d] hover:text-[#0a1b2d] transition-colors font-bold icon-hover-scale">
-            &rarr;
-          </button>
-        </div>
+        {/* Dynamic Interactive Pagination */}
+        {!loading && sortedProducts.length > 0 && totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-16 select-none">
+            {/* Previous Page Arrow */}
+            <button
+              onClick={() => {
+                if (currentPage > 1) {
+                  setCurrentPage(prev => prev - 1);
+                  gridRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              disabled={currentPage === 1}
+              className={`w-10 h-10 rounded-full border flex items-center justify-center font-bold transition-all ${
+                currentPage === 1
+                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                  : 'border-gray-300 text-gray-700 hover:border-[#0a1b2d] hover:bg-[#0a1b2d] hover:text-white cursor-pointer active:scale-95'
+              }`}
+              aria-label="Previous Page"
+            >
+              &larr;
+            </button>
+
+            {/* Page Numbers 1, 2, 3... */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                onClick={() => {
+                  setCurrentPage(pageNum);
+                  gridRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`w-10 h-10 rounded-full font-bold transition-all cursor-pointer ${
+                  currentPage === pageNum
+                    ? 'bg-[#0a1b2d] text-white shadow-lg scale-105'
+                    : 'border border-gray-200 text-gray-600 hover:border-[#0a1b2d] hover:text-[#0a1b2d] hover:bg-gray-100 active:scale-95'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            {/* Next Page Arrow */}
+            <button
+              onClick={() => {
+                if (currentPage < totalPages) {
+                  setCurrentPage(prev => prev + 1);
+                  gridRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              disabled={currentPage === totalPages}
+              className={`w-10 h-10 rounded-full border flex items-center justify-center font-bold transition-all ${
+                currentPage === totalPages
+                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                  : 'border-gray-300 text-gray-700 hover:border-[#0a1b2d] hover:bg-[#0a1b2d] hover:text-white cursor-pointer active:scale-95'
+              }`}
+              aria-label="Next Page"
+            >
+              &rarr;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════
@@ -455,11 +543,11 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
 
             {/* Filter Groups */}
             <div className="p-6 space-y-8">
-              {/* Categories */}
+              {/* Categories — dynamically from backend */}
               <div className="space-y-4">
                 <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Categories</h4>
                 <div className="space-y-3">
-                  {["All Products", "Desktops", "Laptops", "Components", "Monitors", "Accessories"].map((cat) => (
+                  {["All Products", ...dynamicCategories].map((cat) => (
                     <label key={cat} className="flex items-center gap-3 cursor-pointer group" onClick={(e) => { e.preventDefault(); setSidebarCategory(cat); }}>
                       <div className={`w-5 h-5 rounded-md border-2 transition-colors flex items-center justify-center ${cat === sidebarCategory ? 'border-[#164475]' : 'border-gray-300 group-hover:border-[#164475]'}`}>
                         {cat === sidebarCategory && (
@@ -472,11 +560,11 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
                 </div>
               </div>
 
-              {/* Price Range */}
+              {/* Price Range (PKR) */}
               <div className="space-y-4">
-                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Price Range</h4>
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Price Range (PKR)</h4>
                 <div className="space-y-3">
-                  {["Under $50", "$50 — $200", "$200 — $500", "$500 — $1,000", "Over $1,000"].map((price) => (
+                  {["Under PKR 25,000", "PKR 25,000 — 100,000", "PKR 100,000 — 250,000", "Over PKR 250,000"].map((price) => (
                     <label key={price} className="flex items-center gap-3 cursor-pointer group" onClick={(e) => { e.preventDefault(); setSidebarPrice(price === sidebarPrice ? null : price); }}>
                       <div className={`w-5 h-5 rounded-md border-2 transition-colors flex items-center justify-center ${price === sidebarPrice ? 'border-[#164475]' : 'border-gray-300 group-hover:border-[#164475]'}`}>
                         {price === sidebarPrice && <div className="w-3 h-3 bg-[#164475] rounded-sm" />}
@@ -485,18 +573,106 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
                     </label>
                   ))}
                 </div>
+                {/* Min & Max PKR Range Inputs */}
+                <div className="pt-2 flex items-center gap-2">
+                  <div className="flex-1">
+                    <span className="text-[10px] font-bold text-gray-400 block mb-1">Min (Rs.)</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={minPriceInput}
+                      onChange={e => setMinPriceInput(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-[#0a1b2d] focus:outline-none focus:border-[#164475]"
+                    />
+                  </div>
+                  <span className="text-gray-300 pt-4">-</span>
+                  <div className="flex-1">
+                    <span className="text-[10px] font-bold text-gray-400 block mb-1">Max (Rs.)</span>
+                    <input
+                      type="number"
+                      placeholder="Any"
+                      value={maxPriceInput}
+                      onChange={e => setMaxPriceInput(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-[#0a1b2d] focus:outline-none focus:border-[#164475]"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Brands */}
               <div className="space-y-4">
-                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Brands</h4>
-                <div className="space-y-3">
-                  {["ASUS ROG", "Corsair", "Razer", "MSI", "Logitech", "Dell", "HyperX"].map((brand) => (
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Brands / Manufacturers</h4>
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                  {dynamicBrands.map((brand) => (
                     <label key={brand} className="flex items-center gap-3 cursor-pointer group" onClick={(e) => { e.preventDefault(); setSidebarBrand(brand === sidebarBrand ? null : brand); }}>
                       <div className={`w-5 h-5 rounded-md border-2 transition-colors flex items-center justify-center ${brand === sidebarBrand ? 'border-[#164475]' : 'border-gray-300 group-hover:border-[#164475]'}`}>
                         {brand === sidebarBrand && <div className="w-3 h-3 bg-[#164475] rounded-sm" />}
                       </div>
                       <span className="text-sm text-gray-600 group-hover:text-[#0a1b2d] font-medium transition-colors">{brand}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Condition */}
+              <div className="space-y-4">
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Product Condition</h4>
+                <div className="space-y-3">
+                  {["Brand New", "Refurbished"].map((cond) => (
+                    <label key={cond} className="flex items-center gap-3 cursor-pointer group" onClick={(e) => { e.preventDefault(); setSidebarCondition(cond === sidebarCondition ? null : cond); }}>
+                      <div className={`w-5 h-5 rounded-md border-2 transition-colors flex items-center justify-center ${cond === sidebarCondition ? 'border-[#164475]' : 'border-gray-300 group-hover:border-[#164475]'}`}>
+                        {cond === sidebarCondition && <div className="w-3 h-3 bg-[#164475] rounded-sm" />}
+                      </div>
+                      <span className="text-sm text-gray-600 group-hover:text-[#0a1b2d] font-medium transition-colors">{cond}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* RAM Capacity */}
+              <div className="space-y-4">
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">RAM Capacity</h4>
+                <div className="flex flex-wrap gap-2">
+                  {["8GB", "16GB", "32GB", "64GB"].map((ram) => (
+                    <button
+                      key={ram}
+                      type="button"
+                      onClick={() => setSidebarRam(ram === sidebarRam ? null : ram)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${ram === sidebarRam ? 'bg-[#164475] text-white border-[#164475]' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-[#164475]'}`}
+                    >
+                      {ram}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Storage */}
+              <div className="space-y-4">
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Storage Capacity</h4>
+                <div className="flex flex-wrap gap-2">
+                  {["256GB", "512GB", "1TB", "2TB"].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setSidebarStorage(st === sidebarStorage ? null : st)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${st === sidebarStorage ? 'bg-[#164475] text-white border-[#164475]' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-[#164475]'}`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Processor Type */}
+              <div className="space-y-4">
+                <h4 className="font-black text-[#0a1b2d] uppercase text-xs tracking-widest border-b pb-3">Processor Series</h4>
+                <div className="space-y-2">
+                  {["Core i5", "Core i7", "Core i9", "Ryzen 5", "Ryzen 7"].map((proc) => (
+                    <label key={proc} className="flex items-center gap-3 cursor-pointer group" onClick={(e) => { e.preventDefault(); setSidebarProcessor(proc === sidebarProcessor ? null : proc); }}>
+                      <div className={`w-5 h-5 rounded-md border-2 transition-colors flex items-center justify-center ${proc === sidebarProcessor ? 'border-[#164475]' : 'border-gray-300 group-hover:border-[#164475]'}`}>
+                        {proc === sidebarProcessor && <div className="w-3 h-3 bg-[#164475] rounded-sm" />}
+                      </div>
+                      <span className="text-sm text-gray-600 group-hover:text-[#0a1b2d] font-medium transition-colors">{proc}</span>
                     </label>
                   ))}
                 </div>
@@ -524,10 +700,16 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
                 onClick={() => {
                   setSidebarCategory("All Products");
                   setSidebarPrice(null);
+                  setMinPriceInput('');
+                  setMaxPriceInput('');
                   setSidebarBrand(null);
+                  setSidebarCondition(null);
+                  setSidebarRam(null);
+                  setSidebarStorage(null);
+                  setSidebarProcessor(null);
                   setSidebarAvailability(null);
                 }}
-                className="w-1/3 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-bold transition-colors"
+                className="w-1/3 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-bold transition-colors cursor-pointer"
               >
                 Clear
               </button>
@@ -553,5 +735,18 @@ export default function CategoryPage({ handleAddToCart, formatPrice }: CategoryP
         }
       `}</style>
     </div>
+  );
+}
+
+// Wrap with Suspense because useSearchParams() requires it in Next.js
+export default function CategoryPage(props: CategoryPageProps) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#fafbfc] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#164475] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <CategoryPageInner {...props} />
+    </Suspense>
   );
 }

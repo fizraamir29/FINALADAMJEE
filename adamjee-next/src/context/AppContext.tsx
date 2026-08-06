@@ -17,43 +17,93 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Get cart key — per-user if logged in, else global
+function getCartKey(): string {
+  try {
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?._id) return `cart_${parsed._id}`;
+    }
+  } catch (_) {}
+  return 'cart_guest';
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currencyCode, setCurrencyCode] = useState<'PKR' | 'USD'>('USD');
+  const [currencyCode, setCurrencyCode] = useState<'PKR' | 'USD'>('PKR');
   const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cartKey, setCartKey] = useState('cart_guest');
 
-  // Load cart from localStorage in client
+  // On mount: determine cart key and load the right cart
   useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error('Failed to parse cart from localStorage:', e);
-      }
+    const key = getCartKey();
+    setCartKey(key);
+    try {
+      const savedCart = localStorage.getItem(key);
+      if (savedCart) setCart(JSON.parse(savedCart));
+    } catch (e) {
+      console.error('Failed to parse cart from localStorage:', e);
     }
   }, []);
 
-  // Sync products from API to localStorage for real-time storefront updates
+  // When user logs in/out, reload the correct cart
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newKey = getCartKey();
+      if (newKey !== cartKey) {
+        setCartKey(newKey);
+        try {
+          const saved = localStorage.getItem(newKey);
+          setCart(saved ? JSON.parse(saved) : []);
+        } catch (_) {
+          setCart([]);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Also poll every 2s for same-tab login/logout changes
+    const interval = setInterval(() => {
+      const newKey = getCartKey();
+      if (newKey !== cartKey) {
+        setCartKey(newKey);
+        try {
+          const saved = localStorage.getItem(newKey);
+          setCart(saved ? JSON.parse(saved) : []);
+        } catch (_) {
+          setCart([]);
+        }
+      }
+    }, 2000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [cartKey]);
+
+  // Sync products from API to localStorage
   useEffect(() => {
     fetch('/api/products')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null;
+        return res.json();
+      })
       .then(data => {
-        if (data.success && data.products) {
+        if (data && data.success && data.products) {
           localStorage.setItem('adamjee_products', JSON.stringify(data.products));
         }
       })
-      .catch(err => console.error('Failed to sync products from API:', err));
+      .catch(err => console.error('Failed to sync products:', err));
   }, []);
 
-  // Save cart to localStorage (always sync, including empty cart)
+  // Save cart to localStorage under user-specific key
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem(cartKey, JSON.stringify(cart));
+  }, [cart, cartKey]);
 
-  const currency = CURRENCIES[currencyCode];
-  const formatPrice = (usdAmount: number) => {
-    return `${currency.symbol}${(usdAmount * currency.rate).toLocaleString()}`;
+  const currency = CURRENCIES['PKR'];
+  const formatPrice = (amount: number) => {
+    return `Rs. ${Math.round(amount).toLocaleString('en-PK')}`;
   };
 
   const handleAddToCart = (product: Product) => {
@@ -61,7 +111,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const pId = product.id || product._id;
       const existing = prev.find(item => (item.product.id || item.product._id) === pId);
       if (existing) {
-        return prev.map(item => (item.product.id || item.product._id) === pId ? { ...item, qty: item.qty + 1 } : item);
+        return prev.map(item =>
+          (item.product.id || item.product._id) === pId
+            ? { ...item, qty: item.qty + 1 }
+            : item
+        );
       }
       return [...prev, { product, qty: 1 }];
     });

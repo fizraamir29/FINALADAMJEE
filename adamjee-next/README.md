@@ -1,6 +1,6 @@
 # 🖥️ Adamjee Computers — Full-Stack E-Commerce Platform
 
-A premium gaming & tech hardware e-commerce store built with **Next.js 16 App Router**, featuring a complete admin panel, real-time storefront sync, AI chatbot, invoice generation, and full MongoDB + mock-database fallback.
+A premium custom gaming & tech hardware e-commerce store built with **Next.js 16 App Router**, featuring a complete admin panel, real-time storefront sync, AI chatbot, invoice generation, and full MongoDB + mock-database fallback.
 
 ---
 

@@ -117,7 +117,7 @@ export default function AdminChatbot() {
     <>
       {/* ─── FLOATING TRIGGER ─── */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-[999]">
+        <div className="fixed z-[999]" style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))', right: '16px' }}>
           <div className="absolute inset-0 rounded-full bg-[#164475]/30 animate-ping" />
           <button
             id="admin-chatbot-trigger"
@@ -136,12 +136,13 @@ export default function AdminChatbot() {
       {/* ─── CHAT WINDOW ─── */}
       {isOpen && (
         <div
-          className="fixed bottom-6 right-6 z-[999] flex flex-col rounded-3xl shadow-2xl border border-[#e2e8f0] bg-white overflow-hidden animate-zoom-in"
+          className="fixed z-[999] flex flex-col rounded-3xl shadow-2xl border border-[#e2e8f0] bg-white overflow-hidden animate-zoom-in"
           style={{ 
-            width: '360px', 
-            maxWidth: 'calc(100vw - 48px)',
-            height: isMinimized ? '68px' : '560px', 
-            maxHeight: 'calc(100vh - 48px)',
+            bottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+            right: '16px',
+            width: 'min(360px, calc(100vw - 32px))', 
+            height: isMinimized ? '68px' : 'min(560px, calc(100dvh - 100px))', 
+            maxHeight: 'calc(100dvh - 80px)',
             transition: 'height 0.3s cubic-bezier(0.4,0,0.2,1)' 
           }}
         >

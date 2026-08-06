@@ -1,11 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { useSEO } from '../hooks/useSEO';
 import { ShoppingBag, ArrowRight } from 'lucide-react';
 import GoogleLoginModal from '../components/GoogleLoginModal';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   useSEO({
@@ -17,19 +19,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const router = useRouter();
+  const { isLoggedIn, login } = useAuth();
 
   const [error, setError] = useState('');
 
+  // Redirect already-logged-in users away from login page
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.push('/account');
+    }
+  }, [isLoggedIn, router]);
+
   const handleGoogleSuccess = (userData: any) => {
     setIsGoogleModalOpen(false);
-    localStorage.setItem('token', userData.token);
-    localStorage.setItem('user', JSON.stringify({
+    login({
+      token: userData.token,
       _id: userData._id,
       name: userData.name,
       email: userData.email,
-      role: userData.role
-    }));
+      role: userData.role,
+    });
     router.push('/account');
   };
 
@@ -48,13 +59,13 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({
+        login({
+          token: data.token,
           _id: data._id,
           name: data.name,
           email: data.email,
-          role: data.role
-        }));
+          role: data.role,
+        });
         router.push('/account');
       } else {
         setError(data.message || 'Login failed');
@@ -66,6 +77,15 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Don't render form while redirecting
+  if (isLoggedIn) {
+    return (
+      <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-[#164475] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc] flex items-center justify-center px-4 relative overflow-hidden">
@@ -105,7 +125,13 @@ export default function LoginPage() {
           <div className="group">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-xs font-bold text-[#64748b] uppercase tracking-widest group-focus-within:text-[#164475] transition-colors">Password</label>
-              <Link href="#" className="text-xs text-[#164475] hover:text-[#0a1b2d] font-bold transition-colors">Forgot Password?</Link>
+              <button 
+                type="button" 
+                onClick={() => setIsForgotPasswordOpen(true)} 
+                className="text-xs text-[#164475] hover:text-[#0a1b2d] font-bold transition-colors border-none bg-transparent cursor-pointer"
+              >
+                Forgot Password?
+              </button>
             </div>
             <input 
               type="password" 
@@ -165,6 +191,11 @@ export default function LoginPage() {
         isOpen={isGoogleModalOpen} 
         onClose={() => setIsGoogleModalOpen(false)} 
         onSuccess={handleGoogleSuccess} 
+      />
+
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
       />
     </div>
   );

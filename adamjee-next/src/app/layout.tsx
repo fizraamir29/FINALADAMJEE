@@ -1,7 +1,17 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider } from "@/context/AuthContext";
 import LayoutShell from "@/components/LayoutShell";
 import "./globals.css";
+
+// Self-hosted at build time — no runtime request to Google.
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-admin",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Adamjee Computers | Premium Custom Gaming PCs & Accessories",
@@ -14,16 +24,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased">
-        <AppProvider>
-          <LayoutShell>{children}</LayoutShell>
-        </AppProvider>
+      <body
+        className={`${jakarta.variable} antialiased`}
+        suppressHydrationWarning
+      >
+        <AuthProvider>
+          <AppProvider>
+            <LayoutShell>{children}</LayoutShell>
+          </AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );

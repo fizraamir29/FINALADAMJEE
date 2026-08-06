@@ -1,106 +1,84 @@
 'use client';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { ArrowLeft, Calendar, User, Clock, Share2, MessageSquare, ThumbsUp, CheckCircle, Sparkles, Send } from 'lucide-react';
 
-import { Calendar, User, ArrowLeft, Share2, Facebook, Twitter, Linkedin } from 'lucide-react';
-
-const STATIC_POSTS: Record<string, any> = {
-  '1': {
-    title: 'The Ultimate Guide to Building Your First Custom PC in 2026',
-    content: `Building your own PC can seem daunting at first, but with the right guidance, it's an incredibly rewarding experience. This guide will walk you through everything you need to know.
-
-1. Choosing the Right Components
-The heart of any build is the processor (CPU) and the graphics card (GPU). Depending on whether you are gaming at 1080p, 1440p, or 4K, your requirements will vary drastically. In 2026, we are seeing incredible efficiency from both Intel and AMD's latest architectures.
-
-Always allocate at least 40% of your budget to the GPU if your primary goal is gaming. Don't bottleneck a high-end card with a budget CPU.
-
-2. Ensuring Compatibility
-Once you have your core components, you need to ensure they fit together. The motherboard socket must match the CPU, the RAM must be the correct generation (DDR5 is standard now), and your power supply (PSU) must have enough wattage to handle spikes.
-
-3. The Assembly Process
-Take your time. Install the CPU, RAM, and NVMe SSD onto the motherboard before placing it into the case. Cable management isn't just for aesthetics; it improves airflow and thermals.`,
-    image: 'https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1200&q=80',
-    category: 'Guides',
-    date: 'May 10, 2026',
-    author: 'Adamjee Team'
-  },
-  '2': {
-    title: 'NVIDIA RTX 50-Series: Performance Benchmarks & Review',
-    content: `We tested the latest GPUs from NVIDIA across 20 different games at 4K resolution. Here are the shocking results.
-
-Unprecedented Power
-The new RTX 50-series architecture delivers up to 2x ray tracing performance compared to its predecessor. With DLSS 4 frame generation, we saw frame rates exceed 140 FPS in Cyberpunk 2077 at native 4K max settings.
-
-Thermal Performance
-Thanks to the new 3nm process, power draw is significantly reduced, meaning cards run cooler and quieter under load.`,
-    image: 'https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=1200&q=80',
-    category: 'Reviews',
-    date: 'May 08, 2026',
-    author: 'Tech Reviewer'
-  },
-  '3': {
-    title: 'Top 5 Mechanical Keyboards for Competitive Gaming',
-    content: `From rapid triggers to custom switches, discover which keyboards give you the edge in competitive esports.
-
-1. SteelSeries Apex Pro
-Featuring OmniPoint 2.0 adjustable hypermagnetic switches, this keyboard offers the fastest response time on the market.
-
-2. Razer Huntsman V3 Pro
-Analog optical switches with rapid trigger mode make this a favorite for tactical shooters like Valorant and Counter-Strike 2.`,
-    image: 'https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=1200&q=80',
-    category: 'Peripherals',
-    date: 'May 05, 2026',
-    author: 'Adamjee Team'
-  },
-  '4': {
-    title: 'How to Optimize Windows 11 for Maximum FPS',
-    content: `A step-by-step guide to disabling bloatware, tweaking registry settings, and getting every last frame out of your rig.
-
-Game Mode & Hardware Acceleration
-Ensure Game Mode is turned on in Windows settings. This prioritizes game processes. Additionally, enable Hardware-Accelerated GPU Scheduling (HAGS) for improved latency.
-
-Disable Background Apps
-Turn off unnecessary startup programs and background services to free up system memory and CPU cycles.`,
-    image: 'https://images.unsplash.com/photo-1626218174358-7769486c4b79?auto=format&fit=crop&w=1200&q=80',
-    category: 'Software',
-    date: 'May 01, 2026',
-    author: 'Performance Guru'
-  }
-};
 
 export default function BlogPostPage() {
   const { id } = useParams() as { id: string };
   const [post, setPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // Comment section state
+  const [commentName, setCommentName] = useState('');
+  const [commentEmail, setCommentEmail] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<Array<{ name: string; date: string; text: string }>>([
+    { name: 'Sameer Khan', date: 'May 11, 2026', text: 'Super helpful walkthrough! My custom build booted on the first try thanks to your airflow tips.' },
+    { name: 'Bilal Ahmed', date: 'May 12, 2026', text: 'Great benchmark insights! Are you planning a comparison with AMD RX 7900 XTX next?' }
+  ]);
 
   useEffect(() => {
-    if (STATIC_POSTS[id]) {
-      setPost(STATIC_POSTS[id]);
-      setLoading(false);
-    } else {
-      fetch(`/api/blogs/${id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.blog) {
-            setPost({
-              title: data.blog.title,
-              content: data.blog.content,
-              image: data.blog.image || 'https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1200&q=80',
-              category: data.blog.category || 'Guides',
-              date: new Date(data.blog.publishedAt || data.blog.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-              author: data.blog.author || 'Adamjee Team'
-            });
-          }
-        })
-        .catch(err => console.error("Failed to fetch blog post:", err))
-        .finally(() => setLoading(false));
-    }
+    if (!id) return;
+    
+    fetch(`/api/blogs/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.blog) {
+          setPost({
+            title: data.blog.title,
+            content: data.blog.content,
+            image: data.blog.image || 'https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1400&q=80',
+            images: data.blog.images || data.blog.additionalImages || [],
+            category: data.blog.category || 'Guides',
+            date: new Date(data.blog.publishedAt || data.blog.createdAt || Date.now()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+            author: data.blog.author || 'Adamjee Team',
+            readTime: `${Math.max(3, Math.ceil((data.blog.content || '').length / 400))} min read`
+          });
+          setLoading(false);
+          return;
+        }
+        
+        // Not in the database — there is no local copy to fall back to.
+        setPost(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch blog post:", err);
+        setPost(null);
+        setLoading(false);
+      });
   }, [id]);
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentName.trim() || !commentText.trim()) return;
+    setComments(prev => [
+      {
+        name: commentName,
+        date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+        text: commentText
+      },
+      ...prev
+    ]);
+    setCommentName('');
+    setCommentEmail('');
+    setCommentText('');
+  };
 
   if (loading) {
     return (
-      <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc] flex justify-center items-center">
+      <div className="pt-32 pb-24 min-h-screen bg-[#f8fafc] flex justify-center items-center">
         <div className="w-10 h-10 border-4 border-[#164475] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -108,54 +86,174 @@ export default function BlogPostPage() {
 
   if (!post) {
     return (
-      <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc] text-center">
-        <h1 className="text-2xl font-bold text-red-500">Blog post not found</h1>
-        <Link href="/blog" className="text-[#164475] hover:underline mt-4 inline-block font-semibold">Back to Blog</Link>
+      <div className="pt-32 pb-24 min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center text-center px-4">
+        <h2 className="text-2xl font-bold text-[#0a1b2d] mb-4">Article Not Found</h2>
+        <p className="text-slate-500 text-sm mb-6">The requested tech article may have been removed or updated.</p>
+        <Link href="/blog" className="px-6 py-2.5 bg-[#164475] text-white text-xs font-bold rounded-full">
+          Back to Blog
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="pt-32 pb-24 min-h-screen bg-[#fafbfc]">
+    <div className="pt-28 pb-24 min-h-screen bg-[#f8fafc]">
       <div className="container mx-auto px-4 max-w-4xl">
-        <Link href="/blog" className="inline-flex items-center gap-2 text-[#64748b] hover:text-[#164475] font-bold mb-8 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Blog
-        </Link>
         
-        <div className="bg-white rounded-3xl border border-[#e2e8f0] shadow-sm overflow-hidden">
-          <div className="h-[400px] relative">
-            <img 
-              src={post.image} 
-              alt={post.title} 
-              className="w-full h-full object-cover"
-            />
-          </div>
+        {/* Navigation Breadcrumb */}
+        <div className="mb-8">
+          <Link href="/blog" className="inline-flex items-center gap-2 text-xs font-extrabold text-[#164475] hover:text-[#0f2a4a] transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to All Articles
+          </Link>
+        </div>
+
+        {/* Article Container Card */}
+        <article className="bg-white rounded-3xl border border-[#e2e8f0] shadow-sm p-6 md:p-12 mb-12">
           
-          <div className="p-8 md:p-16">
-            <div className="flex items-center gap-4 text-sm text-[#64748b] font-semibold mb-6">
-              <span className="bg-[#f8fafc] text-[#164475] px-3 py-1 rounded-full uppercase tracking-widest text-[10px]">{post.category}</span>
-              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {post.date}</span>
-              <span className="flex items-center gap-1"><User className="w-4 h-4" /> {post.author}</span>
-            </div>
-            
-            <h1 className="text-4xl md:text-5xl font-extrabold text-[#0a1b2d] leading-tight mb-8">
+          {/* Category & Title */}
+          <div className="mb-6">
+            <span className="inline-block bg-[#164475] text-white text-xs font-extrabold px-4 py-1.5 rounded-full uppercase tracking-wider mb-4">
+              {post.category}
+            </span>
+            <h1 className="text-3xl md:text-5xl font-black text-[#0a1b2d] leading-tight mb-6">
               {post.title}
             </h1>
             
-            <div className="prose prose-lg max-w-none text-[#475569] whitespace-pre-wrap leading-relaxed">
-              {post.content}
-            </div>
-            
-            <div className="border-t border-[#e2e8f0] mt-16 pt-8 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-[#0a1b2d]">Share:</span>
-                <button className="w-10 h-10 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#64748b] hover:bg-[#1da1f2] hover:text-white transition-colors"><Twitter className="w-4 h-4" /></button>
-                <button className="w-10 h-10 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#64748b] hover:bg-[#1877f2] hover:text-white transition-colors"><Facebook className="w-4 h-4" /></button>
-                <button className="w-10 h-10 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#64748b] hover:bg-[#0a66c2] hover:text-white transition-colors"><Linkedin className="w-4 h-4" /></button>
+            {/* Author & Meta Details Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 py-4 border-y border-slate-100 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#164475] text-white flex items-center justify-center font-bold text-sm">
+                  {post.author ? post.author.charAt(0) : 'A'}
+                </div>
+                <div>
+                  <p className="font-bold text-[#0a1b2d]">{post.author}</p>
+                  <p className="text-[10px] text-slate-400">Adamjee Tech Editorial</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 text-slate-400">
+                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {post.date}</span>
+                <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {post.readTime || '5 min read'}</span>
+                <button onClick={handleShare} className="flex items-center gap-1.5 text-[#164475] hover:text-[#0f2a4a] font-bold">
+                  <Share2 className="w-4 h-4" /> {copied ? 'Copied Link!' : 'Share'}
+                </button>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Featured Hero Cover Image */}
+          <div className="mb-10 rounded-3xl overflow-hidden aspect-video border border-slate-100 shadow-sm">
+            <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+          </div>
+
+          {/* Multiple Gallery Images Grid (If post has images) */}
+          {Array.isArray(post.images) && post.images.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+              {post.images.map((imgUrl: string, idx: number) => (
+                <div key={idx} className="rounded-2xl overflow-hidden aspect-square border border-slate-200">
+                  <img src={imgUrl} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Formatted Article Body */}
+          <div className="prose prose-lg max-w-none text-slate-700 leading-relaxed space-y-6 text-sm md:text-base">
+            {post.content.split('\n\n').map((paragraph: string, idx: number) => {
+              if (paragraph.startsWith('### ')) {
+                return (
+                  <h3 key={idx} className="text-xl md:text-2xl font-black text-[#0a1b2d] mt-8 mb-4">
+                    {paragraph.replace('### ', '')}
+                  </h3>
+                );
+              }
+              if (paragraph.startsWith('> ')) {
+                return (
+                  <blockquote key={idx} className="my-6 p-6 border-l-4 border-[#164475] bg-slate-50 rounded-r-2xl font-medium text-slate-800 italic text-base">
+                    {paragraph.replace('> ', '')}
+                  </blockquote>
+                );
+              }
+              return (
+                <p key={idx} className="leading-relaxed">
+                  {paragraph}
+                </p>
+              );
+            })}
+          </div>
+
+          {/* Author Bio Footer Card */}
+          <div className="mt-12 p-6 bg-slate-50 rounded-3xl border border-slate-200 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-[#164475] text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+              {post.author ? post.author.charAt(0) : 'A'}
+            </div>
+            <div>
+              <h4 className="font-bold text-[#0a1b2d] text-sm">{post.author}</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Senior Hardware Engineer & Tech Journalist at Adamjee Computers. Specialist in GPU architectures and high-end PC builds.
+              </p>
+            </div>
+          </div>
+
+        </article>
+
+        {/* Interactive Comments Section (Matching Reference Dribbble Design) */}
+        <section className="bg-white rounded-3xl border border-[#e2e8f0] p-6 md:p-10 shadow-sm mb-12 space-y-8">
+          <h3 className="text-xl font-extrabold text-[#0a1b2d] flex items-center gap-2 border-b pb-4">
+            <MessageSquare className="w-5 h-5 text-[#164475]" /> Join Discussion ({comments.length})
+          </h3>
+
+          {/* Write a Comment Form */}
+          <form onSubmit={handleAddComment} className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+            <h4 className="text-xs font-bold text-[#0a1b2d] uppercase tracking-wider">Leave a Comment</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                value={commentName}
+                onChange={e => setCommentName(e.target.value)}
+                placeholder="Your Name *"
+                required
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#164475]"
+              />
+              <input
+                type="email"
+                value={commentEmail}
+                onChange={e => setCommentEmail(e.target.value)}
+                placeholder="Your Email *"
+                required
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#164475]"
+              />
+            </div>
+            <textarea
+              rows={3}
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              placeholder="Share your thoughts on this article..."
+              required
+              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#164475]"
+            ></textarea>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 bg-[#164475] hover:bg-[#0f2a4a] text-white text-xs font-extrabold px-6 py-2.5 rounded-full transition-colors shadow-sm"
+            >
+              <Send className="w-3.5 h-3.5" /> Post Comment
+            </button>
+          </form>
+
+          {/* Posted Comments List */}
+          <div className="space-y-4">
+            {comments.map((c, idx) => (
+              <div key={idx} className="p-4 rounded-2xl border border-slate-100 bg-white space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-[#0a1b2d]">{c.name}</span>
+                  <span className="text-slate-400 text-[10px] font-semibold">{c.date}</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">{c.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
       </div>
     </div>
   );

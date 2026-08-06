@@ -9,15 +9,15 @@ interface CustomRigPromoProps {
 export default function CustomRigPromo({ onBuildPcOpen }: CustomRigPromoProps) {
   return (
     <section className="px-4 md:px-12 py-8 relative reveal-up">
-      <div className="relative bg-[#0a1b2d] rounded-[24px] overflow-hidden text-white flex flex-col justify-center min-h-[460px] border border-white/5 shadow-2xl">
+      <div className="relative bg-[#103256] rounded-[28px] md:rounded-[32px] overflow-hidden text-white flex flex-col justify-center min-h-[480px] border border-white/10 shadow-2xl">
         
-        {/* Background Right: RGB PC Image (Fallback to existing RGB PC image in project) */}
+        {/* Background Right: RGB PC Image */}
         <div 
           className="absolute right-0 top-0 h-full w-full md:w-[60%] z-0 bg-cover bg-center md:bg-right"
           style={{ backgroundImage: 'url("/images/blue_rgb_pc_cases_1780241349905.png")' }}
         >
           {/* Gradient to blend the image smoothly into the dark left side */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a1b2d] via-[#0a1b2d]/80 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#103256] via-[#103256]/85 to-transparent"></div>
         </div>
 
         {/* Content Container */}

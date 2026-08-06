@@ -21,11 +21,16 @@ const productSchema = new mongoose.Schema({
   price: { type: Number, required: [true, 'Price is required'], min: 0 },
   comparePrice: { type: Number, default: 0 },
   tag: { type: String, enum: ['New', 'Hot', 'Sale', 'Best Seller', ''], default: '' },
+  promoText: { type: String, default: '' },
+  discountPercent: { type: Number, default: 0 },
   category: {
     type: String,
     required: true,
-    enum: ['Desktops', 'Laptops', 'Components', 'Peripherals', 'Accessories', 'Monitors', 'Networking', 'Headphones', 'Earphones', 'Speakers'],
+    default: 'General',
   },
+
+  id: { type: String },
+  image: { type: String, default: '' },
   images: [String],
   variations: [variationSchema],
   specifications: [{ label: String, value: String }],
@@ -40,17 +45,50 @@ const productSchema = new mongoose.Schema({
   weightUnit: { type: String, default: 'kg' },
   chargeTax: { type: Boolean, default: true },
   isPublished: { type: Boolean, default: true },
+  // Publish state as shown in the admin. `isPublished` stays in sync with it
+  // (see the pre-save hook) because the storefront filters on that flag.
+  status: {
+    type: String,
+    enum: ['active', 'draft', 'archived'],
+    default: 'active',
+  },
   isFeatured: { type: Boolean, default: false },
   reviews: [reviewSchema],
   rating: { type: Number, default: 0 },
   numReviews: { type: Number, default: 0 },
   tags: [String],
+  specBullets: [String],
+  feature1Title: String,
+  feature1Sub: String,
+  feature1Desc: String,
+  feature1Desc2: String,
+  feature1Img: String,
+  feature2Title: String,
+  feature2Sub: String,
+  feature2Desc: String,
+  feature2Desc2: String,
+  feature2Img: String,
+  feature3Title: String,
+  feature3Sub: String,
+  feature3Desc: String,
+  feature3Desc2: String,
+  feature3Img: String,
+  accordionItems: [{ title: String, content: String }],
+  colors: [String],
+  colorLabel: String,
 }, { timestamps: true });
 
 // Auto-generate slug from name
 productSchema.pre('save', async function (this: any) {
   if (this.isModified('name')) {
     this.slug = this.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+});
+
+// Keep the publish flag the storefront queries on in step with `status`.
+productSchema.pre('save', function (this: any) {
+  if (this.isModified('status')) {
+    this.isPublished = this.status === 'active';
   }
 });
 

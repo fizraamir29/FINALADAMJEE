@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
-import { saveMessage } from '../utils/storage';
 
 const FAQ_GROUPS = [
   {
@@ -40,23 +39,33 @@ export default function FAQPage() {
     setOpenKey(openKey === key ? null : key);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    saveMessage({
-      name: formData.name,
-      email: formData.email,
-      subject: 'FAQ Form Submission',
-      message: formData.message,
-    });
 
-    setTimeout(() => {
+    // Previously this only wrote to localStorage, so submissions never reached
+    // the store. It now posts to the same endpoint as the contact form.
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          subject: 'FAQ Form Submission',
+          message: formData.message,
+        }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+        setFormData({ name: '', email: '', message: '' });
+        setTimeout(() => setSubmitted(false), 5000);
+      }
+    } catch (err) {
+      console.error('FAQ submission error:', err);
+    } finally {
       setIsSubmitting(false);
-      setSubmitted(true);
-      setFormData({ name: '', email: '', message: '' });
-      setTimeout(() => setSubmitted(false), 5000);
-    }, 1200);
+    }
   };
 
   return (
