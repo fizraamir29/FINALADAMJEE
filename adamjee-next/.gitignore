@@ -41,7 +41,7 @@ yarn-error.log*
 !.env.example
 
 # Block any db/credential scripts
-scripts/test-orders-api.js
+scripts/
 check_db.js
 check_db.ts
 *credentials*
