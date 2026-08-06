@@ -1,4 +1,5 @@
 'use client';
+// Adamjee Computers Admin Dashboard - High Performance UI
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSEO } from '../hooks/useSEO';
 import {
